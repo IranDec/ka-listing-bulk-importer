@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 3.3.0
+ * Version: 3.2.1
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '3.2.1'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '3.2.0'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -43,14 +43,13 @@ class KA_Listing_Bulk_Importer {
 	const MAX_DISCOVER_COMBOS  = 24; // cities × categories cap for one *interactive* (synchronous, with a preview) run
 	const OPTION_JOB           = 'ka_lbi_bulk_job';       // the one background "run everything" Discover job, if any is in progress
 	const JOB_CRON_HOOK        = 'ka_lbi_process_job_batch';
-	const JOB_BATCH_SIZE       = 1;  // city×category combinations processed per background tick — deliberately small; see JOB_MAX_RESULTS_CAP below for why
-	const JOB_MAX_RESULTS_CAP  = 5;  // hard ceiling on results-per-combination actually used inside a background tick, REGARDLESS of what the form asked for. Google's Place Details is fetched once per result found, sequentially — a high "how many results" value (this plugin allows up to 60) turned into up to 60 sequential HTTP calls inside a single tick, which could tie up a PHP worker for many minutes and, combined with live polling, was enough to take the whole site down. The interactive/preview path (MAX_DISCOVER_COMBOS-limited) is unaffected — this cap applies only inside run_job_tick().
+	const JOB_BATCH_SIZE       = 2;  // city×category combinations processed per background tick
 	const JOB_TICK_DELAY       = 25; // seconds between ticks when WP-Cron alone is driving it (no admin watching)
-	const JOB_MIN_GAP          = 25; // seconds between ticks when the admin has the status card open and it's polling live — kept slow on purpose (see JOB_MAX_RESULTS_CAP) so live polling can never pile up faster than a tick can safely finish
+	const JOB_MIN_GAP          = 8;  // seconds between ticks when the admin has the status card open and it's polling live — faster, since a person is watching
 	const JOB_LOCK_KEY         = 'ka_lbi_job_lock';      // short-lived lock so a live poll and a WP-Cron tick can never process the same batch twice
 	const OPTION_PHOTO_JOB     = 'ka_lbi_photo_job';      // the one background "backfill every photo" job, if any is in progress
 	const PHOTO_JOB_CRON_HOOK  = 'ka_lbi_process_photo_job_batch';
-	const PHOTO_JOB_BATCH_SIZE = 2;  // listings checked per background tick — small for the same reason as JOB_BATCH_SIZE (each listing is 2-3 sequential outbound HTTP calls)
+	const PHOTO_JOB_BATCH_SIZE = 5;  // listings checked per background tick
 	const PHOTO_JOB_LOCK_KEY   = 'ka_lbi_photo_job_lock';
 	const OPTION_PHOTO_LOG     = 'ka_lbi_photo_log'; // recent "backfill photos" runs, like the Discover history log
 	const PHOTO_LOG_MAX        = 30;
@@ -1278,15 +1277,6 @@ class KA_Listing_Bulk_Importer {
 					<td>
 						<input type="number" name="ka_lbi_max_results" id="ka_lbi_max_results" min="1" max="<?php echo (int) self::MAX_DISCOVER_RESULTS; ?>" value="20" style="width:80px;" />
 						<span id="ka_lbi_cost_estimate" style="margin-left:10px;color:#646970;"></span>
-						<p class="description">
-							<?php
-							printf(
-								/* translators: %d: JOB_MAX_RESULTS_CAP */
-								esc_html__( 'Only used as-is for a small (preview) search. A search that runs in the background automatically uses at most %d results per city/category instead, however high this is set — each result needs its own lookup to Google, and a high number here made a background run tie up the server for a very long time.', 'ka-listing-bulk-importer' ),
-								(int) self::JOB_MAX_RESULTS_CAP
-							);
-							?>
-						</p>
 					</td>
 				</tr>
 				<tr>
@@ -1483,7 +1473,7 @@ class KA_Listing_Bulk_Importer {
 					.catch( function() { /* a network hiccup — the next tick just tries again */ } );
 			}
 			tick();
-			timer = setInterval( tick, 15000 ); // deliberately slow — see JOB_MAX_RESULTS_CAP in the PHP for why this can't be fast
+			timer = setInterval( tick, 4000 );
 			return { stop: function() { clearInterval( timer ); } };
 		};
 		</script>
@@ -2232,12 +2222,9 @@ class KA_Listing_Bulk_Importer {
 					$job['done']++;
 					continue;
 				}
-				// Hard-capped here (not just at job creation) so this protects an already-queued
-				// job too — e.g. one saved with a high "how many results" before this cap existed.
-				$safe_max = min( (int) $job['max'], self::JOB_MAX_RESULTS_CAP );
-				$found    = ( 'google' === $job['provider'] )
-					? $this->discover_google( $key, $pair['location'], $cat_term, $safe_max )
-					: $this->discover_ai( $job['provider'], $key, $pair['location'], $cat_term, $safe_max );
+				$found = ( 'google' === $job['provider'] )
+					? $this->discover_google( $key, $pair['location'], $cat_term, $job['max'] )
+					: $this->discover_ai( $job['provider'], $key, $pair['location'], $cat_term, $job['max'] );
 
 				if ( ! is_wp_error( $found ) ) {
 					foreach ( $found as $i => $fields ) {
@@ -2407,7 +2394,7 @@ class KA_Listing_Bulk_Importer {
 				$args['pagetoken'] = $token;
 			}
 			$url      = add_query_arg( $args, 'https://maps.googleapis.com/maps/api/place/textsearch/json' );
-			$response = wp_remote_get( $url, array( 'timeout' => 6 ) );
+			$response = wp_remote_get( $url, array( 'timeout' => 20 ) );
 			if ( is_wp_error( $response ) ) {
 				return $response;
 			}
@@ -2457,7 +2444,7 @@ class KA_Listing_Bulk_Importer {
 			'key'      => $key,
 		), 'https://maps.googleapis.com/maps/api/place/details/json' );
 
-		$response = wp_remote_get( $details_url, array( 'timeout' => 6 ) );
+		$response = wp_remote_get( $details_url, array( 'timeout' => 20 ) );
 		if ( is_wp_error( $response ) ) {
 			return $fields;
 		}
@@ -2490,7 +2477,7 @@ class KA_Listing_Bulk_Importer {
 			'key'       => $key,
 		), 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json' );
 
-		$response = wp_remote_get( $url, array( 'timeout' => 6 ) );
+		$response = wp_remote_get( $url, array( 'timeout' => 20 ) );
 		if ( is_wp_error( $response ) ) {
 			return $response;
 		}
@@ -2515,7 +2502,7 @@ class KA_Listing_Bulk_Importer {
 			'key'      => $key,
 		), 'https://maps.googleapis.com/maps/api/place/details/json' );
 
-		$response = wp_remote_get( $details_url, array( 'timeout' => 6 ) );
+		$response = wp_remote_get( $details_url, array( 'timeout' => 20 ) );
 		if ( is_wp_error( $response ) ) {
 			return '';
 		}
@@ -3535,7 +3522,7 @@ class KA_Listing_Bulk_Importer {
 			return new WP_Error( 'ka_lbi_bad_url', __( 'Not a valid URL', 'ka-listing-bulk-importer' ) );
 		}
 
-		$tmp = download_url( $url, 10 );
+		$tmp = download_url( $url, 20 );
 		if ( is_wp_error( $tmp ) ) {
 			return $tmp;
 		}
