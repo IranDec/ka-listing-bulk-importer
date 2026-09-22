@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 2.7.1
+ * Version: 2.8.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '2.6.0'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '2.7.0'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -99,7 +99,6 @@ class KA_Listing_Bulk_Importer {
 
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
-		add_action( 'current_screen', array( $this, 'prevent_admin_page_caching' ) );
 		add_action( 'admin_post_ka_lbi_upload', array( $this, 'handle_upload' ) );
 		add_action( 'admin_post_ka_lbi_preview', array( $this, 'handle_preview' ) );
 		add_action( 'admin_post_ka_lbi_import', array( $this, 'handle_import' ) );
@@ -113,6 +112,7 @@ class KA_Listing_Bulk_Importer {
 		add_action( 'admin_post_ka_lbi_save_schedule', array( $this, 'handle_save_schedule' ) );
 		add_action( 'admin_post_ka_lbi_delete_schedule', array( $this, 'handle_delete_schedule' ) );
 		add_action( 'admin_post_ka_lbi_run_schedule_now', array( $this, 'handle_run_schedule_now' ) );
+		add_action( 'admin_post_ka_lbi_backfill_photos', array( $this, 'handle_backfill_photos' ) );
 		add_action( self::CRON_HOOK, array( $this, 'run_due_schedules' ) );
 
 		$this->maybe_migrate_legacy_key();
@@ -152,22 +152,6 @@ class KA_Listing_Bulk_Importer {
 		}
 		$data = get_plugin_data( __FILE__, false, false );
 		return ! empty( $data['Version'] ) ? $data['Version'] : self::VERSION_FALLBACK;
-	}
-
-	/**
-	 * A caching/CDN plugin that (incorrectly) caches logged-in admin screens can serve a page
-	 * with an already-expired form nonce baked into it, which surfaces to the user as
-	 * "The link you followed has expired." on submit. Force this plugin's own admin screens
-	 * to always be fetched fresh so that never happens.
-	 */
-	public function prevent_admin_page_caching( $screen ) {
-		if ( ! $screen || false === strpos( (string) $screen->id, 'ka-lbi-' ) ) {
-			return;
-		}
-		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
-			define( 'DONOTCACHEPAGE', true );
-		}
-		nocache_headers();
 	}
 
 	/** Create (once) the folder where the user can place source photos directly on this server. */
@@ -1197,9 +1181,95 @@ class KA_Listing_Bulk_Importer {
 		})();
 		</script>
 		<?php
+		$this->render_backfill_photos_card();
 		$this->render_discover_history();
 		$this->render_footer();
 		echo '</div>';
+	}
+
+	/** A card to fill in featured photos for listings that already exist but have none (e.g. anything imported from a CSV without a Photo column). Google Maps only — it's the one source here with real, licensed photos. */
+	private function render_backfill_photos_card() {
+		$locations = get_terms( array( 'taxonomy' => self::TAX_LOCATION, 'hide_empty' => false ) );
+		if ( is_wp_error( $locations ) || empty( $locations ) ) {
+			return;
+		}
+		$categories = get_terms( array( 'taxonomy' => self::TAX_CATEGORY, 'hide_empty' => false ) );
+		$google_key = get_option( self::OPTION_KEY_PREFIX . 'google', '' );
+
+		$backfill_result = get_transient( $this->tkey( 'backfill_result' ) );
+		if ( $backfill_result ) {
+			delete_transient( $this->tkey( 'backfill_result' ) );
+		}
+		?>
+		<div class="ka-lbi-card">
+			<h2><span class="dashicons dashicons-format-image"></span> <?php esc_html_e( 'Backfill missing photos', 'ka-listing-bulk-importer' ); ?></h2>
+			<p class="description"><?php esc_html_e( 'For listings that already exist on your site but have no featured photo (e.g. anything imported from a CSV without a Photo column) — looks each one up on Google Maps by name and city, and attaches its real photo when Google has one.', 'ka-listing-bulk-importer' ); ?></p>
+
+			<?php if ( '' === $google_key ) : ?>
+				<div class="notice notice-warning inline" style="padding:8px 12px;">
+					<p style="margin:.4em 0;">
+						<?php
+						printf(
+							/* translators: %s: link to settings page */
+							wp_kses_post( __( 'This needs a working Google Maps (Places API) key — add and save one on the <a href="%s">Settings</a> tab first.', 'ka-listing-bulk-importer' ) ),
+							esc_url( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-settings' ) )
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
+
+			<?php if ( $backfill_result ) : ?>
+				<div class="notice notice-<?php echo $backfill_result['found'] > 0 ? 'success' : 'info'; ?> inline" style="padding:8px 12px;">
+					<p style="margin:.4em 0;">
+						<?php
+						printf(
+							/* translators: 1: number of listings checked, 2: number that got a new photo, 3: number left with no match on Google */
+							esc_html__( 'Checked %1$d listing(s): %2$d got a photo, %3$d had no clear match on Google Maps.', 'ka-listing-bulk-importer' ),
+							(int) $backfill_result['checked'],
+							(int) $backfill_result['found'],
+							(int) $backfill_result['not_found']
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( self::DISCOVER_NONCE ); ?>
+				<input type="hidden" name="action" value="ka_lbi_backfill_photos" />
+				<table class="form-table">
+					<tr>
+						<th><label for="ka_lbi_bf_location"><?php esc_html_e( 'City', 'ka-listing-bulk-importer' ); ?></label></th>
+						<td>
+							<select name="ka_lbi_bf_location" id="ka_lbi_bf_location">
+								<option value=""><?php esc_html_e( 'All cities', 'ka-listing-bulk-importer' ); ?></option>
+								<?php foreach ( $locations as $loc ) : ?>
+									<option value="<?php echo esc_attr( $loc->slug ); ?>"><?php echo esc_html( $loc->name ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="ka_lbi_bf_category"><?php esc_html_e( 'Category', 'ka-listing-bulk-importer' ); ?></label></th>
+						<td>
+							<select name="ka_lbi_bf_category" id="ka_lbi_bf_category">
+								<option value=""><?php esc_html_e( 'All categories', 'ka-listing-bulk-importer' ); ?></option>
+								<?php foreach ( $categories as $cat ) : ?>
+									<option value="<?php echo esc_attr( $cat->slug ); ?>"><?php echo esc_html( $cat->name ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="ka_lbi_bf_max"><?php esc_html_e( 'Check at most', 'ka-listing-bulk-importer' ); ?></label></th>
+						<td><input type="number" name="ka_lbi_bf_max" id="ka_lbi_bf_max" min="1" max="60" value="25" style="width:80px;" /> <span class="description"><?php esc_html_e( 'listings per run (keeps it inside one page load)', 'ka-listing-bulk-importer' ); ?></span></td>
+					</tr>
+				</table>
+				<?php submit_button( __( 'Find and attach photos', 'ka-listing-bulk-importer' ), 'secondary', 'submit', false, ( '' === $google_key ) ? array( 'disabled' => 'disabled' ) : array() ); ?>
+			</form>
+		</div>
+		<?php
 	}
 
 	/** Recent Discover runs, newest first — a quick way to see whether a city/category combo has already been searched (and billed for) recently. */
@@ -1585,6 +1655,56 @@ class KA_Listing_Bulk_Importer {
 		}
 
 		return $fields;
+	}
+
+	/** Resolves a free-text business name (+ city) to a Google place_id, for the photo backfill tool. */
+	private function google_find_place_id( $key, $text_query ) {
+		$url = add_query_arg( array(
+			'input'     => $text_query,
+			'inputtype' => 'textquery',
+			'fields'    => 'place_id',
+			'key'       => $key,
+		), 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json' );
+
+		$response = wp_remote_get( $url, array( 'timeout' => 20 ) );
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) || ! in_array( $body['status'] ?? '', array( 'OK', 'ZERO_RESULTS' ), true ) ) {
+			$detail = is_array( $body ) && ! empty( $body['error_message'] ) ? ': ' . $body['error_message'] : '';
+			return new WP_Error( 'ka_lbi_google_findplace', sprintf(
+				/* translators: 1: Google status string, 2: detail */
+				__( 'Google place lookup failed (%1$s)%2$s', 'ka-listing-bulk-importer' ),
+				$body['status'] ?? 'unknown',
+				$detail
+			) );
+		}
+		return ! empty( $body['candidates'][0]['place_id'] ) ? $body['candidates'][0]['place_id'] : '';
+	}
+
+	/** Looks up a Google Place Photo URL for an already-resolved place_id, for the photo backfill tool. */
+	private function google_photo_url_for_place( $key, $place_id ) {
+		$details_url = add_query_arg( array(
+			'place_id' => $place_id,
+			'fields'   => 'photo',
+			'key'      => $key,
+		), 'https://maps.googleapis.com/maps/api/place/details/json' );
+
+		$response = wp_remote_get( $details_url, array( 'timeout' => 20 ) );
+		if ( is_wp_error( $response ) ) {
+			return '';
+		}
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		$res  = is_array( $body ) ? ( $body['result'] ?? array() ) : array();
+		if ( empty( $res['photos'][0]['photo_reference'] ) ) {
+			return '';
+		}
+		return add_query_arg( array(
+			'maxwidth'       => 1000,
+			'photoreference' => $res['photos'][0]['photo_reference'],
+			'key'            => $key,
+		), 'https://maps.googleapis.com/maps/api/place/photo' );
 	}
 
 	/**
@@ -2884,6 +3004,105 @@ class KA_Listing_Bulk_Importer {
 			fputcsv( $out, $row );
 		}
 		fclose( $out );
+		exit;
+	}
+
+	/**
+	 * Fills in featured photos for listings that already exist on the site
+	 * but have none — looks each one up on Google Maps by "title, city" and
+	 * attaches whatever real photo Google has for it. Only ever touches the
+	 * featured image; nothing else about the listing is changed.
+	 */
+	public function handle_backfill_photos() {
+		$this->verify_capability();
+		check_admin_referer( self::DISCOVER_NONCE );
+
+		$loc_slug = isset( $_POST['ka_lbi_bf_location'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_bf_location'] ) ) : '';
+		$cat_slug = isset( $_POST['ka_lbi_bf_category'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_bf_category'] ) ) : '';
+		$max      = isset( $_POST['ka_lbi_bf_max'] ) ? absint( $_POST['ka_lbi_bf_max'] ) : 25;
+		$max      = max( 1, min( 60, $max ) );
+
+		$key = get_option( self::OPTION_KEY_PREFIX . 'google', '' );
+		if ( '' === $key ) {
+			$this->die_back( __( 'No Google Maps (Places API) key saved yet. Add one on the Settings tab first.', 'ka-listing-bulk-importer' ) );
+		}
+
+		$tax_query = array();
+		if ( '' !== $loc_slug ) {
+			$tax_query[] = array( 'taxonomy' => self::TAX_LOCATION, 'field' => 'slug', 'terms' => array( $loc_slug ) );
+		}
+		if ( '' !== $cat_slug ) {
+			$tax_query[] = array( 'taxonomy' => self::TAX_CATEGORY, 'field' => 'slug', 'terms' => array( $cat_slug ) );
+		}
+		if ( count( $tax_query ) > 1 ) {
+			$tax_query['relation'] = 'AND';
+		}
+
+		$query_args = array(
+			'post_type'      => self::POST_TYPE,
+			'post_status'    => array( 'publish', 'pending', 'draft', 'private' ),
+			'posts_per_page' => $max * 3, // over-fetch, since some already have a photo and get filtered out below
+			'no_found_rows'  => true,
+			'meta_query'     => array(
+				'relation' => 'OR',
+				array( 'key' => '_thumbnail_id', 'compare' => 'NOT EXISTS' ),
+				array( 'key' => '_thumbnail_id', 'value' => '', 'compare' => '=' ),
+			),
+		);
+		if ( ! empty( $tax_query ) ) {
+			$query_args['tax_query'] = $tax_query;
+		}
+
+		$candidates = get_posts( $query_args );
+
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 180 );
+		}
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+
+		$checked   = 0;
+		$found     = 0;
+		$not_found = 0;
+
+		foreach ( $candidates as $post ) {
+			if ( $checked >= $max ) {
+				break;
+			}
+			if ( has_post_thumbnail( $post->ID ) ) {
+				continue; // belt-and-suspenders re-check, in case the meta query above missed an edge case
+			}
+			$checked++;
+
+			$location_terms = get_the_terms( $post->ID, self::TAX_LOCATION );
+			$city            = ( $location_terms && ! is_wp_error( $location_terms ) ) ? $location_terms[0]->name : '';
+			$query_text      = trim( get_the_title( $post->ID ) . ' ' . $city );
+
+			$place_id = $this->google_find_place_id( $key, $query_text );
+			if ( is_wp_error( $place_id ) || '' === $place_id ) {
+				$not_found++;
+				continue;
+			}
+
+			$photo_url = $this->google_photo_url_for_place( $key, $place_id );
+			if ( '' === $photo_url ) {
+				$not_found++;
+				continue;
+			}
+
+			$attachment_id = $this->import_one_image( $photo_url, $post->ID );
+			if ( is_wp_error( $attachment_id ) ) {
+				$not_found++;
+				continue;
+			}
+			set_post_thumbnail( $post->ID, $attachment_id );
+			$found++;
+		}
+
+		set_transient( $this->tkey( 'backfill_result' ), compact( 'checked', 'found', 'not_found' ), self::TRANSIENT_TTL );
+
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-discover' ) );
 		exit;
 	}
 
