@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 2.9.0
+ * Version: 3.1.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '2.8.0'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '3.0.0'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -36,9 +36,15 @@ class KA_Listing_Bulk_Importer {
 	const OPTION_SPEND_PREFIX  = 'ka_lbi_spend_';  // + provider => running estimated total spend
 	const OPTION_DISCOVER_LOG  = 'ka_lbi_discover_log'; // recent Discover searches, so the same combo isn't re-run by accident
 	const OPTION_SCHEDULES     = 'ka_lbi_schedules';    // saved recurring Discover searches
+	const OPTION_SCHEDULE_LOG  = 'ka_lbi_schedule_log'; // per-run history: what happened, when, and why (or why not)
+	const SCHEDULE_LOG_MAX     = 60;
 	const SCHEDULE_NONCE       = 'ka_lbi_schedule';
 	const CRON_HOOK            = 'ka_lbi_scheduled_discover';
-	const MAX_DISCOVER_COMBOS  = 24; // cities × categories cap for one multi-city/"all categories" run
+	const MAX_DISCOVER_COMBOS  = 24; // cities × categories cap for one *interactive* (synchronous, with a preview) run
+	const OPTION_JOB           = 'ka_lbi_bulk_job';       // the one background "run everything" job, if any is in progress
+	const JOB_CRON_HOOK        = 'ka_lbi_process_job_batch';
+	const JOB_BATCH_SIZE       = 2;  // city×category combinations processed per background tick
+	const JOB_TICK_DELAY       = 25; // seconds between ticks — gentle on the provider's rate limits
 	const MAX_FILE_BYTES     = 5242880;   // 5 MB CSV
 	const MAX_IMAGE_BYTES    = 10485760;  // 10 MB per photo
 	const MAX_ROWS           = 2000;
@@ -112,8 +118,12 @@ class KA_Listing_Bulk_Importer {
 		add_action( 'admin_post_ka_lbi_save_schedule', array( $this, 'handle_save_schedule' ) );
 		add_action( 'admin_post_ka_lbi_delete_schedule', array( $this, 'handle_delete_schedule' ) );
 		add_action( 'admin_post_ka_lbi_run_schedule_now', array( $this, 'handle_run_schedule_now' ) );
+		add_action( 'admin_post_ka_lbi_toggle_schedule', array( $this, 'handle_toggle_schedule' ) );
 		add_action( 'admin_post_ka_lbi_backfill_photos', array( $this, 'handle_backfill_photos' ) );
 		add_action( self::CRON_HOOK, array( $this, 'run_due_schedules' ) );
+		add_action( 'admin_post_ka_lbi_start_bulk_job', array( $this, 'handle_start_bulk_job' ) );
+		add_action( 'admin_post_ka_lbi_cancel_bulk_job', array( $this, 'handle_cancel_bulk_job' ) );
+		add_action( self::JOB_CRON_HOOK, array( $this, 'process_job_batch' ) );
 
 		$this->maybe_migrate_legacy_key();
 	}
@@ -130,6 +140,8 @@ class KA_Listing_Bulk_Importer {
 		if ( $timestamp ) {
 			wp_unschedule_event( $timestamp, self::CRON_HOOK );
 		}
+		wp_clear_scheduled_hook( self::JOB_CRON_HOOK );
+		delete_option( self::OPTION_JOB );
 	}
 
 	/** One-time, cheap upgrade path: the 2.2.0 single "Google key" option becomes the 'google' provider key. */
@@ -219,6 +231,14 @@ class KA_Listing_Bulk_Importer {
 		);
 		add_submenu_page(
 			'edit.php?post_type=' . self::POST_TYPE,
+			__( 'Scheduled Discover searches', 'ka-listing-bulk-importer' ),
+			__( 'Schedules', 'ka-listing-bulk-importer' ),
+			self::SETTINGS_CAP,
+			'ka-lbi-schedules',
+			array( $this, 'render_schedules_page' )
+		);
+		add_submenu_page(
+			'edit.php?post_type=' . self::POST_TYPE,
 			__( 'Bulk Import Settings', 'ka-listing-bulk-importer' ),
 			__( 'Bulk Import Settings', 'ka-listing-bulk-importer' ),
 			self::SETTINGS_CAP,
@@ -275,13 +295,14 @@ class KA_Listing_Bulk_Importer {
 	private function render_nav_tabs( $active ) {
 		$this->render_admin_css();
 		$tabs = array(
-			'ka-lbi-import'   => __( 'Bulk Import', 'ka-listing-bulk-importer' ),
-			'ka-lbi-discover' => __( 'Discover', 'ka-listing-bulk-importer' ),
-			'ka-lbi-settings' => __( 'Settings', 'ka-listing-bulk-importer' ),
+			'ka-lbi-import'     => __( 'Bulk Import', 'ka-listing-bulk-importer' ),
+			'ka-lbi-discover'   => __( 'Discover', 'ka-listing-bulk-importer' ),
+			'ka-lbi-schedules'  => __( 'Schedules', 'ka-listing-bulk-importer' ),
+			'ka-lbi-settings'   => __( 'Settings', 'ka-listing-bulk-importer' ),
 		);
 		echo '<h2 class="nav-tab-wrapper">';
 		foreach ( $tabs as $slug => $label ) {
-			if ( 'ka-lbi-settings' === $slug && ! current_user_can( self::SETTINGS_CAP ) ) {
+			if ( in_array( $slug, array( 'ka-lbi-settings', 'ka-lbi-schedules' ), true ) && ! current_user_can( self::SETTINGS_CAP ) ) {
 				continue;
 			}
 			$class = ( $slug === $active ) ? 'nav-tab nav-tab-active' : 'nav-tab';
@@ -489,7 +510,14 @@ class KA_Listing_Bulk_Importer {
 			</div>
 		</div>
 
-		<?php $this->render_schedules_card(); ?>
+		<div class="ka-lbi-card">
+			<h2><span class="dashicons dashicons-clock"></span> <?php esc_html_e( 'Scheduled Discover searches', 'ka-listing-bulk-importer' ); ?></h2>
+			<p class="description">
+				<?php esc_html_e( 'Recurring automatic searches now have their own tab, with more options and a run log.', 'ka-listing-bulk-importer' ); ?>
+				&nbsp;
+				<a class="button button-secondary" href="<?php echo esc_url( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-schedules' ) ); ?>"><?php esc_html_e( 'Open Schedules', 'ka-listing-bulk-importer' ); ?></a>
+			</p>
+		</div>
 
 		<div class="ka-lbi-card">
 			<h2><span class="dashicons dashicons-sos"></span> <?php esc_html_e( 'Common problems', 'ka-listing-bulk-importer' ); ?></h2>
@@ -506,45 +534,94 @@ class KA_Listing_Bulk_Importer {
 		echo '</div>';
 	}
 
-	/** "Set it and forget it" recurring Discover searches — a card on the Settings page listing saved combos plus a form to add one. */
-	private function render_schedules_card() {
+	/** Status pill helper for the schedule run log. */
+	private function schedule_log_status_pill( $status ) {
+		$map = array(
+			'ran'              => array( 'ka-lbi-pill-ok', __( 'Ran', 'ka-listing-bulk-importer' ) ),
+			'error'            => array( 'ka-lbi-pill-bad', __( 'Error', 'ka-listing-bulk-importer' ) ),
+			'skipped_not_due'  => array( 'ka-lbi-pill-muted', __( 'Skipped — not due yet', 'ka-listing-bulk-importer' ) ),
+			'skipped_disabled' => array( 'ka-lbi-pill-muted', __( 'Skipped — paused', 'ka-listing-bulk-importer' ) ),
+		);
+		$def = $map[ $status ] ?? array( 'ka-lbi-pill-muted', $status );
+		return '<span class="ka-lbi-pill ' . esc_attr( $def[0] ) . '">' . esc_html( $def[1] ) . '</span>';
+	}
+
+	/** "Scheduled Discover searches" — its own top-level tab: manage saved recurring searches and see a run log. */
+	public function render_schedules_page() {
+		if ( ! current_user_can( self::SETTINGS_CAP ) ) {
+			wp_die( esc_html__( 'You do not have permission to do this.', 'ka-listing-bulk-importer' ), 403 );
+		}
+
 		$schedules  = $this->get_schedules();
 		$categories = get_terms( array( 'taxonomy' => self::TAX_CATEGORY, 'hide_empty' => false ) );
 		$locations  = get_terms( array( 'taxonomy' => self::TAX_LOCATION, 'hide_empty' => false ) );
 		if ( is_wp_error( $categories ) ) {
 			$categories = array();
 		}
+
+		$edit_id = isset( $_GET['edit'] ) ? sanitize_text_field( wp_unslash( $_GET['edit'] ) ) : '';
+		$editing = null;
+		if ( $edit_id ) {
+			foreach ( $schedules as $s ) {
+				if ( $s['id'] === $edit_id ) {
+					$editing = $s;
+					break;
+				}
+			}
+		}
+
+		echo '<div class="wrap ka-lbi-wrap"><h1><span class="dashicons dashicons-clock"></span>' . esc_html__( 'Scheduled Discover searches', 'ka-listing-bulk-importer' ) . '</h1>';
+		$this->render_nav_tabs( 'ka-lbi-schedules' );
 		?>
+		<p class="ka-lbi-intro"><?php esc_html_e( 'Save a city + category + source combo to run automatically (daily or weekly), without you having to start it by hand. Anything clearly new is added as "Pending" and you get an email summary — duplicates and anything uncertain are always left for you to review by hand on the Discover tab.', 'ka-listing-bulk-importer' ); ?></p>
+
+		<?php if ( isset( $_GET['ka_lbi_ran'] ) ) : ?>
+			<div class="notice notice-success inline" style="padding:8px 12px;"><p style="margin:.4em 0;"><?php esc_html_e( 'Ran now — check the site admin email for the summary, and Listings → All Listings (Pending) for anything it added, and the log below for details.', 'ka-listing-bulk-importer' ); ?></p></div>
+		<?php elseif ( isset( $_GET['ka_lbi_saved'] ) ) : ?>
+			<div class="notice notice-success inline" style="padding:8px 12px;"><p style="margin:.4em 0;"><?php esc_html_e( 'Scheduled search saved.', 'ka-listing-bulk-importer' ); ?></p></div>
+		<?php endif; ?>
+
 		<div class="ka-lbi-card">
-			<h2><span class="dashicons dashicons-clock"></span> <?php esc_html_e( 'Scheduled Discover searches', 'ka-listing-bulk-importer' ); ?></h2>
-			<p class="description"><?php esc_html_e( 'Save a city + category + source combo to run automatically (daily or weekly). Anything clearly new is added as "Pending" and you get an email summary — duplicates and anything uncertain are always left for you to review by hand on the Discover tab.', 'ka-listing-bulk-importer' ); ?></p>
-
-			<?php if ( isset( $_GET['ka_lbi_ran'] ) ) : ?>
-				<div class="notice notice-success inline" style="padding:8px 12px;"><p style="margin:.4em 0;"><?php esc_html_e( 'Ran now — check the site admin email for the summary, and Listings → All Listings (Pending) for anything it added.', 'ka-listing-bulk-importer' ); ?></p></div>
-			<?php endif; ?>
-
+			<h2><span class="dashicons dashicons-list-view"></span> <?php esc_html_e( 'Saved schedules', 'ka-listing-bulk-importer' ); ?></h2>
 			<?php if ( ! empty( $schedules ) ) : ?>
 				<table class="widefat striped">
 					<thead><tr>
 						<th><?php esc_html_e( 'City', 'ka-listing-bulk-importer' ); ?></th>
-						<th><?php esc_html_e( 'Category', 'ka-listing-bulk-importer' ); ?></th>
+						<th><?php esc_html_e( 'Categories', 'ka-listing-bulk-importer' ); ?></th>
 						<th><?php esc_html_e( 'Source', 'ka-listing-bulk-importer' ); ?></th>
 						<th><?php esc_html_e( 'Frequency', 'ka-listing-bulk-importer' ); ?></th>
+						<th><?php esc_html_e( 'Status', 'ka-listing-bulk-importer' ); ?></th>
 						<th><?php esc_html_e( 'Last run', 'ka-listing-bulk-importer' ); ?></th>
 						<th></th>
 					</tr></thead>
 					<tbody>
 					<?php foreach ( $schedules as $s ) :
-						$cat_term = ( '' !== $s['category'] ) ? get_term_by( 'slug', $s['category'], self::TAX_CATEGORY ) : null;
+						$cat_names = array();
+						foreach ( $s['categories'] as $slug ) {
+							$t = get_term_by( 'slug', $slug, self::TAX_CATEGORY );
+							if ( $t ) {
+								$cat_names[] = $t->name;
+							}
+						}
+						$cat_label = empty( $cat_names ) ? __( 'All categories', 'ka-listing-bulk-importer' ) : implode( ', ', $cat_names );
 						?>
 						<tr>
 							<td><?php echo esc_html( $s['location'] ); ?></td>
-							<td><?php echo esc_html( $cat_term ? $cat_term->name : __( 'All categories', 'ka-listing-bulk-importer' ) ); ?></td>
+							<td><?php echo esc_html( $cat_label ); ?></td>
 							<td><?php echo esc_html( self::PROVIDERS[ $s['provider'] ]['label'] ?? $s['provider'] ); ?></td>
 							<td><?php echo esc_html( 'daily' === $s['freq'] ? __( 'Daily', 'ka-listing-bulk-importer' ) : __( 'Weekly', 'ka-listing-bulk-importer' ) ); ?></td>
-							<td><?php echo esc_html( $s['last_run'] ? $s['last_run'] : __( 'never yet', 'ka-listing-bulk-importer' ) ); ?></td>
 							<td>
+								<?php if ( ! empty( $s['enabled'] ) ) : ?>
+									<span class="ka-lbi-pill ka-lbi-pill-ok"><?php esc_html_e( 'Active', 'ka-listing-bulk-importer' ); ?></span>
+								<?php else : ?>
+									<span class="ka-lbi-pill ka-lbi-pill-muted"><?php esc_html_e( 'Paused', 'ka-listing-bulk-importer' ); ?></span>
+								<?php endif; ?>
+							</td>
+							<td><?php echo esc_html( $s['last_run'] ? $s['last_run'] : __( 'never yet', 'ka-listing-bulk-importer' ) ); ?></td>
+							<td style="white-space:nowrap;">
+								<a class="button button-small" href="<?php echo esc_url( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-schedules&edit=' . rawurlencode( $s['id'] ) ) ); ?>#ka-lbi-sch-form"><?php esc_html_e( 'Edit', 'ka-listing-bulk-importer' ); ?></a>
 								<a class="button button-small" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=ka_lbi_run_schedule_now&id=' . rawurlencode( $s['id'] ) ), self::SCHEDULE_NONCE ) ); ?>"><?php esc_html_e( 'Run now', 'ka-listing-bulk-importer' ); ?></a>
+								<a class="button button-small" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=ka_lbi_toggle_schedule&id=' . rawurlencode( $s['id'] ) ), self::SCHEDULE_NONCE ) ); ?>"><?php echo ! empty( $s['enabled'] ) ? esc_html__( 'Pause', 'ka-listing-bulk-importer' ) : esc_html__( 'Resume', 'ka-listing-bulk-importer' ); ?></a>
 								<a class="button button-small" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=ka_lbi_delete_schedule&id=' . rawurlencode( $s['id'] ) ), self::SCHEDULE_NONCE ) ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Remove this scheduled search?', 'ka-listing-bulk-importer' ) ); ?>');"><?php esc_html_e( 'Remove', 'ka-listing-bulk-importer' ); ?></a>
 							</td>
 						</tr>
@@ -554,16 +631,21 @@ class KA_Listing_Bulk_Importer {
 			<?php else : ?>
 				<p><span class="ka-lbi-pill ka-lbi-pill-muted"><?php esc_html_e( 'none yet', 'ka-listing-bulk-importer' ); ?></span></p>
 			<?php endif; ?>
+		</div>
 
-			<h3><?php esc_html_e( 'Add a scheduled search', 'ka-listing-bulk-importer' ); ?></h3>
+		<div class="ka-lbi-card" id="ka-lbi-sch-form">
+			<h2><span class="dashicons dashicons-<?php echo $editing ? 'edit' : 'plus-alt'; ?>"></span> <?php echo $editing ? esc_html__( 'Edit scheduled search', 'ka-listing-bulk-importer' ) : esc_html__( 'Add a scheduled search', 'ka-listing-bulk-importer' ); ?></h2>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( self::SCHEDULE_NONCE ); ?>
 				<input type="hidden" name="action" value="ka_lbi_save_schedule" />
+				<?php if ( $editing ) : ?>
+					<input type="hidden" name="ka_lbi_sch_id" value="<?php echo esc_attr( $editing['id'] ); ?>" />
+				<?php endif; ?>
 				<table class="form-table">
 					<tr>
 						<th><label for="ka_lbi_sch_location"><?php esc_html_e( 'City', 'ka-listing-bulk-importer' ); ?></label></th>
 						<td>
-							<input type="text" name="ka_lbi_sch_location" id="ka_lbi_sch_location" class="regular-text" list="ka_lbi_sch_location_list" required placeholder="<?php esc_attr_e( 'e.g. Hamburg', 'ka-listing-bulk-importer' ); ?>" />
+							<input type="text" name="ka_lbi_sch_location" id="ka_lbi_sch_location" class="regular-text" list="ka_lbi_sch_location_list" required placeholder="<?php esc_attr_e( 'e.g. Hamburg', 'ka-listing-bulk-importer' ); ?>" value="<?php echo esc_attr( $editing ? $editing['location'] : '' ); ?>" />
 							<datalist id="ka_lbi_sch_location_list">
 								<?php foreach ( $locations as $loc ) : ?>
 									<option value="<?php echo esc_attr( $loc->name ); ?>"></option>
@@ -572,14 +654,22 @@ class KA_Listing_Bulk_Importer {
 						</td>
 					</tr>
 					<tr>
-						<th><label for="ka_lbi_sch_category"><?php esc_html_e( 'Category', 'ka-listing-bulk-importer' ); ?></label></th>
+						<th><?php esc_html_e( 'Categories', 'ka-listing-bulk-importer' ); ?></th>
 						<td>
-							<select name="ka_lbi_sch_category" id="ka_lbi_sch_category">
-								<option value=""><?php esc_html_e( 'All categories', 'ka-listing-bulk-importer' ); ?></option>
+							<p>
+								<a href="#" id="ka_lbi_sch_cat_all"><?php esc_html_e( 'Select all', 'ka-listing-bulk-importer' ); ?></a>
+								&nbsp;|&nbsp;
+								<a href="#" id="ka_lbi_sch_cat_none"><?php esc_html_e( 'Clear (= all categories)', 'ka-listing-bulk-importer' ); ?></a>
+							</p>
+							<div style="max-height:220px;overflow-y:auto;border:1px solid #dcdcde;border-radius:4px;padding:8px 12px;max-width:420px;background:#fff;">
 								<?php foreach ( $categories as $cat ) : ?>
-									<option value="<?php echo esc_attr( $cat->slug ); ?>"><?php echo esc_html( $cat->name ); ?></option>
+									<label style="display:block;margin:3px 0;">
+										<input type="checkbox" class="ka-lbi-sch-cat-checkbox" name="ka_lbi_sch_category[]" value="<?php echo esc_attr( $cat->slug ); ?>" <?php checked( $editing && in_array( $cat->slug, $editing['categories'], true ) ); ?> />
+										<?php echo esc_html( $cat->name ); ?>
+									</label>
 								<?php endforeach; ?>
-							</select>
+							</div>
+							<p class="description"><?php esc_html_e( 'Leave none checked to search all categories for this city on every run.', 'ka-listing-bulk-importer' ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -587,29 +677,101 @@ class KA_Listing_Bulk_Importer {
 						<td>
 							<select name="ka_lbi_sch_provider" id="ka_lbi_sch_provider">
 								<?php foreach ( self::PROVIDERS as $slug => $def ) : ?>
-									<option value="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $def['label'] ); ?></option>
+									<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $editing ? $editing['provider'] : '', $slug ); ?>><?php echo esc_html( $def['label'] ); ?></option>
 								<?php endforeach; ?>
 							</select>
 						</td>
 					</tr>
 					<tr>
-						<th><label for="ka_lbi_sch_max"><?php esc_html_e( 'Max results per run', 'ka-listing-bulk-importer' ); ?></label></th>
-						<td><input type="number" name="ka_lbi_sch_max" id="ka_lbi_sch_max" min="1" max="<?php echo (int) self::MAX_DISCOVER_RESULTS; ?>" value="15" style="width:80px;" /></td>
+						<th><label for="ka_lbi_sch_max"><?php esc_html_e( 'Max results per category per run', 'ka-listing-bulk-importer' ); ?></label></th>
+						<td><input type="number" name="ka_lbi_sch_max" id="ka_lbi_sch_max" min="1" max="<?php echo (int) self::MAX_DISCOVER_RESULTS; ?>" value="<?php echo esc_attr( $editing ? $editing['max'] : 15 ); ?>" style="width:80px;" /></td>
 					</tr>
 					<tr>
 						<th><label for="ka_lbi_sch_freq"><?php esc_html_e( 'Frequency', 'ka-listing-bulk-importer' ); ?></label></th>
 						<td>
 							<select name="ka_lbi_sch_freq" id="ka_lbi_sch_freq">
-								<option value="weekly" selected><?php esc_html_e( 'Weekly', 'ka-listing-bulk-importer' ); ?></option>
-								<option value="daily"><?php esc_html_e( 'Daily', 'ka-listing-bulk-importer' ); ?></option>
+								<option value="weekly" <?php selected( $editing ? $editing['freq'] : 'weekly', 'weekly' ); ?>><?php esc_html_e( 'Weekly', 'ka-listing-bulk-importer' ); ?></option>
+								<option value="daily" <?php selected( $editing ? $editing['freq'] : '', 'daily' ); ?>><?php esc_html_e( 'Daily', 'ka-listing-bulk-importer' ); ?></option>
 							</select>
 						</td>
 					</tr>
+					<tr>
+						<th><label for="ka_lbi_sch_enabled"><?php esc_html_e( 'Active', 'ka-listing-bulk-importer' ); ?></label></th>
+						<td>
+							<label><input type="checkbox" name="ka_lbi_sch_enabled" id="ka_lbi_sch_enabled" value="1" <?php checked( ! $editing || ! empty( $editing['enabled'] ) ); ?> /> <?php esc_html_e( 'Run this schedule automatically', 'ka-listing-bulk-importer' ); ?></label>
+							<p class="description"><?php esc_html_e( 'Untick to keep the schedule saved but pause it — it will be skipped (and logged as "paused") until you turn it back on.', 'ka-listing-bulk-importer' ); ?></p>
+						</td>
+					</tr>
 				</table>
-				<?php submit_button( __( 'Add scheduled search', 'ka-listing-bulk-importer' ), 'secondary', 'submit', false ); ?>
+				<?php submit_button( $editing ? __( 'Update scheduled search', 'ka-listing-bulk-importer' ) : __( 'Add scheduled search', 'ka-listing-bulk-importer' ), 'primary', 'submit', false ); ?>
+				<?php if ( $editing ) : ?>
+					&nbsp;<a class="button" href="<?php echo esc_url( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-schedules' ) ); ?>"><?php esc_html_e( 'Cancel edit', 'ka-listing-bulk-importer' ); ?></a>
+				<?php endif; ?>
 			</form>
+			<script>
+			(function(){
+				var allLink  = document.getElementById('ka_lbi_sch_cat_all');
+				var noneLink = document.getElementById('ka_lbi_sch_cat_none');
+				var boxes    = document.querySelectorAll('.ka-lbi-sch-cat-checkbox');
+				if ( allLink ) {
+					allLink.addEventListener('click', function(e){ e.preventDefault(); boxes.forEach(function(b){ b.checked = true; }); });
+				}
+				if ( noneLink ) {
+					noneLink.addEventListener('click', function(e){ e.preventDefault(); boxes.forEach(function(b){ b.checked = false; }); });
+				}
+			})();
+			</script>
 		</div>
+
+		<div class="ka-lbi-card">
+			<h2><span class="dashicons dashicons-media-text"></span> <?php esc_html_e( 'Run log', 'ka-listing-bulk-importer' ); ?></h2>
+			<p class="description"><?php esc_html_e( 'Every time the daily cron check runs, each schedule is logged here — whether it actually ran, was skipped because it was not due yet or was paused, or hit an error, plus what it found.', 'ka-listing-bulk-importer' ); ?></p>
+			<?php $log = $this->get_schedule_log(); ?>
+			<?php if ( ! empty( $log ) ) : ?>
+				<table class="widefat striped">
+					<thead><tr>
+						<th><?php esc_html_e( 'When', 'ka-listing-bulk-importer' ); ?></th>
+						<th><?php esc_html_e( 'City / Category', 'ka-listing-bulk-importer' ); ?></th>
+						<th><?php esc_html_e( 'Source', 'ka-listing-bulk-importer' ); ?></th>
+						<th><?php esc_html_e( 'Outcome', 'ka-listing-bulk-importer' ); ?></th>
+						<th><?php esc_html_e( 'Details', 'ka-listing-bulk-importer' ); ?></th>
+					</tr></thead>
+					<tbody>
+					<?php foreach ( $log as $entry ) : ?>
+						<tr>
+							<td><?php echo esc_html( $entry['time'] ); ?></td>
+							<td><?php echo esc_html( $entry['location'] . ' / ' . $entry['category'] ); ?></td>
+							<td><?php echo esc_html( $entry['provider'] ); ?></td>
+							<td><?php echo wp_kses_post( $this->schedule_log_status_pill( $entry['status'] ) ); ?></td>
+							<td>
+								<?php if ( 'error' === $entry['status'] ) : ?>
+									<?php echo esc_html( $entry['message'] ); ?>
+								<?php elseif ( 'ran' === $entry['status'] ) : ?>
+									<?php
+									printf(
+										/* translators: 1: found count, 2: created count, 3: skipped count */
+										esc_html__( '%1$d found, %2$d added as pending, %3$d skipped', 'ka-listing-bulk-importer' ),
+										(int) $entry['found'],
+										(int) $entry['created'],
+										(int) $entry['skipped']
+									);
+									?>
+								<?php else : ?>
+									—
+								<?php endif; ?>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php else : ?>
+				<p><span class="ka-lbi-pill ka-lbi-pill-muted"><?php esc_html_e( 'no runs logged yet', 'ka-listing-bulk-importer' ); ?></span></p>
+			<?php endif; ?>
+		</div>
+
 		<?php
+		$this->render_footer();
+		echo '</div>';
 	}
 
 	public function handle_save_settings() {
@@ -979,7 +1141,7 @@ class KA_Listing_Bulk_Importer {
 		<div class="ka-lbi-card">
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 			<?php wp_nonce_field( self::DISCOVER_NONCE ); ?>
-			<input type="hidden" name="action" value="ka_lbi_discover" />
+			<input type="hidden" name="action" id="ka_lbi_discover_action" value="ka_lbi_discover" />
 			<table class="form-table">
 				<tr>
 					<th><label for="ka_lbi_location_select"><?php esc_html_e( 'City or village', 'ka-listing-bulk-importer' ); ?></label></th>
@@ -1104,9 +1266,15 @@ class KA_Listing_Bulk_Importer {
 					</td>
 				</tr>
 			</table>
-			<?php submit_button( __( 'Start search', 'ka-listing-bulk-importer' ) ); ?>
+			<?php submit_button( __( 'Start search', 'ka-listing-bulk-importer' ), 'primary', 'submit', false ); ?>
+			<button type="submit" class="button" id="ka_lbi_run_bg_btn"><?php esc_html_e( 'Run in the background instead (no combination limit)', 'ka-listing-bulk-importer' ); ?></button>
+			<p class="description" style="margin-top:8px;">
+				<?php esc_html_e( '"Run in the background" skips the preview screen: it works through every combination a couple at a time over several minutes, imports anything clearly new as Pending, quietly skips anything ambiguous, and emails you a summary when it\'s done. Use "Start search" instead when you want to review results before anything is saved.', 'ka-listing-bulk-importer' ); ?>
+			</p>
 		</form>
 		</div>
+
+		<?php $this->render_bulk_job_status(); ?>
 
 		<script>
 		(function() {
@@ -1186,6 +1354,22 @@ class KA_Listing_Bulk_Importer {
 				});
 			}
 
+			// The second submit button runs the same form as a background job instead of an interactive search.
+			var bgBtn      = document.getElementById('ka_lbi_run_bg_btn');
+			var actionInput = document.getElementById('ka_lbi_discover_action');
+			if (bgBtn && actionInput) {
+				bgBtn.addEventListener('click', function() {
+					actionInput.value = 'ka_lbi_start_bulk_job';
+				});
+			}
+			// If the interactive "Start search" button is used after "Run in background" was clicked once, put the action back.
+			var startBtn = document.getElementById('submit');
+			if (startBtn && actionInput) {
+				startBtn.addEventListener('click', function() {
+					actionInput.value = 'ka_lbi_discover';
+				});
+			}
+
 			// City select <-> free-text "add new place" field.
 			var citySelect = document.getElementById('ka_lbi_location_select');
 			var cityText   = document.getElementById('ka_lbi_location');
@@ -1237,6 +1421,45 @@ class KA_Listing_Bulk_Importer {
 		$this->render_discover_history();
 		$this->render_footer();
 		echo '</div>';
+	}
+
+	/** Shows the currently running background job's progress, if any, plus a one-time notice right after starting one. */
+	private function render_bulk_job_status() {
+		if ( isset( $_GET['ka_lbi_job_started'] ) ) {
+			echo '<div class="notice notice-success inline" style="padding:8px 12px;margin-top:16px;"><p style="margin:.4em 0;">' . esc_html__( 'Background search started — it will keep working in the background even if you close this page. Refresh this page any time to see progress, or check your email when it finishes.', 'ka-listing-bulk-importer' ) . '</p></div>';
+		}
+
+		$job = $this->get_job();
+		if ( ! $job ) {
+			return;
+		}
+		$pct = $job['total'] > 0 ? round( ( $job['done'] / $job['total'] ) * 100 ) : 0;
+		?>
+		<div class="ka-lbi-card">
+			<h2><span class="dashicons dashicons-update"></span> <?php esc_html_e( 'Background search in progress', 'ka-listing-bulk-importer' ); ?></h2>
+			<p>
+				<?php
+				printf(
+					/* translators: 1: combinations done, 2: total combinations, 3: percent, 4: new listings added so far, 5: skipped so far */
+					esc_html__( '%1$d of %2$d city/category combinations done (%3$d%%) — %4$d new listing(s) added as Pending so far, %5$d skipped.', 'ka-listing-bulk-importer' ),
+					(int) $job['done'],
+					(int) $job['total'],
+					(int) $pct,
+					(int) $job['created'],
+					(int) $job['skipped']
+				);
+				?>
+			</p>
+			<div style="background:#f0f0f1;border-radius:4px;height:10px;overflow:hidden;max-width:420px;">
+				<div style="background:#2271b1;height:10px;width:<?php echo (int) $pct; ?>%;"></div>
+			</div>
+			<p style="margin-top:12px;">
+				<a class="button" href="<?php echo esc_url( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-discover' ) ); ?>"><?php esc_html_e( 'Refresh', 'ka-listing-bulk-importer' ); ?></a>
+				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=ka_lbi_cancel_bulk_job' ), self::DISCOVER_NONCE ) ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Stop the background search? Whatever it already added stays — only the rest of the queue is cancelled.', 'ka-listing-bulk-importer' ) ); ?>');"><?php esc_html_e( 'Cancel', 'ka-listing-bulk-importer' ); ?></a>
+			</p>
+			<p class="description"><?php esc_html_e( 'This keeps running roughly every 25 seconds via WordPress\'s own scheduler, a couple of categories at a time, whether or not this page is open.', 'ka-listing-bulk-importer' ); ?></p>
+		</div>
+		<?php
 	}
 
 	/** A card to fill in featured photos for listings that already exist but have none (e.g. anything imported from a CSV without a Photo column). Google Maps only — it's the one source here with real, licensed photos. */
@@ -1629,6 +1852,213 @@ class KA_Listing_Bulk_Importer {
 			$log = array_slice( $log, -40 );
 		}
 		update_option( self::OPTION_DISCOVER_LOG, $log, false );
+	}
+
+	/* ------------------------------------------------------------------ */
+	/* Background bulk Discover job — "run every category, no combo cap"  */
+	/* ------------------------------------------------------------------ */
+
+	/**
+	 * The interactive Discover form is capped at MAX_DISCOVER_COMBOS because
+	 * it runs synchronously inside one page load — a hosting timeout would
+	 * kill a 69-category search halfway through with nothing to show for it.
+	 * This is the alternative: queue every city×category combination and
+	 * work through it a couple at a time via WP-Cron, so there is no combo
+	 * limit at all. It trades the interactive preview for that — anything
+	 * found that is clearly new is imported straight away as "Pending";
+	 * anything ambiguous (a possible duplicate, a missing title) is left out
+	 * entirely rather than guessed at, and a summary is emailed when it's done.
+	 */
+	public function handle_start_bulk_job() {
+		$this->verify_capability();
+		check_admin_referer( self::DISCOVER_NONCE );
+
+		if ( $this->get_job() ) {
+			$this->die_back( __( 'A background search is already running. Wait for it to finish (or cancel it) before starting another.', 'ka-listing-bulk-importer' ) );
+		}
+
+		$location  = isset( $_POST['ka_lbi_location'] ) ? sanitize_text_field( wp_unslash( $_POST['ka_lbi_location'] ) ) : '';
+		$bulk_raw  = isset( $_POST['ka_lbi_locations_bulk'] ) ? sanitize_textarea_field( wp_unslash( $_POST['ka_lbi_locations_bulk'] ) ) : '';
+		$cat_slugs = isset( $_POST['ka_lbi_category'] ) ? array_values( array_unique( array_filter( array_map( 'sanitize_key', (array) wp_unslash( $_POST['ka_lbi_category'] ) ) ) ) ) : array();
+		$provider  = isset( $_POST['ka_lbi_provider'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_provider'] ) ) : '';
+		$max       = isset( $_POST['ka_lbi_max_results'] ) ? absint( $_POST['ka_lbi_max_results'] ) : 20;
+		$max       = max( 1, min( self::MAX_DISCOVER_RESULTS, $max ) );
+
+		if ( ! isset( self::PROVIDERS[ $provider ] ) ) {
+			$this->die_back( __( 'Please choose a data source.', 'ka-listing-bulk-importer' ) );
+		}
+		if ( '' === get_option( self::OPTION_KEY_PREFIX . $provider, '' ) ) {
+			$this->die_back( sprintf(
+				/* translators: %s: provider label */
+				__( 'No API key saved for %s yet. Add one on the Settings tab first.', 'ka-listing-bulk-importer' ),
+				self::PROVIDERS[ $provider ]['label']
+			) );
+		}
+
+		if ( '' !== $bulk_raw ) {
+			$location_list = array_values( array_unique( array_filter( array_map( 'trim', preg_split( '/[\r\n,]+/', $bulk_raw ) ) ) ) );
+		} elseif ( '' !== $location ) {
+			$location_list = array( $location );
+		} else {
+			$location_list = array();
+		}
+		if ( empty( $location_list ) ) {
+			$this->die_back( __( 'Please enter at least one city or village.', 'ka-listing-bulk-importer' ) );
+		}
+
+		if ( empty( $cat_slugs ) ) {
+			$cat_terms = get_terms( array( 'taxonomy' => self::TAX_CATEGORY, 'hide_empty' => false ) );
+			if ( is_wp_error( $cat_terms ) || empty( $cat_terms ) ) {
+				$this->die_back( __( 'No categories exist yet — add at least one under Listings → Categories first.', 'ka-listing-bulk-importer' ) );
+			}
+			$cat_slugs = wp_list_pluck( $cat_terms, 'slug' );
+		}
+
+		$queue = array();
+		foreach ( $location_list as $loc ) {
+			foreach ( $cat_slugs as $cat_slug ) {
+				$queue[] = array( 'location' => $loc, 'category' => $cat_slug );
+			}
+		}
+
+		$job = array(
+			'id'         => wp_generate_uuid4(),
+			'queue'      => $queue,
+			'total'      => count( $queue ),
+			'done'       => 0,
+			'created'    => 0,
+			'skipped'    => 0,
+			'provider'   => $provider,
+			'max'        => $max,
+			'started_by' => get_current_user_id(),
+			'started_at' => current_time( 'mysql' ),
+		);
+		update_option( self::OPTION_JOB, $job, false );
+
+		// Kick off the first batch right away instead of waiting for the next visitor to trigger WP-Cron.
+		wp_schedule_single_event( time(), self::JOB_CRON_HOOK );
+		if ( function_exists( 'spawn_cron' ) ) {
+			spawn_cron();
+		}
+
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-discover&ka_lbi_job_started=1' ) );
+		exit;
+	}
+
+	public function handle_cancel_bulk_job() {
+		$this->verify_capability();
+		check_admin_referer( self::DISCOVER_NONCE );
+		delete_option( self::OPTION_JOB );
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-discover' ) );
+		exit;
+	}
+
+	private function get_job() {
+		$job = get_option( self::OPTION_JOB, null );
+		return is_array( $job ) ? $job : null;
+	}
+
+	/**
+	 * Fired by WP-Cron every ~JOB_TICK_DELAY seconds while a background job is
+	 * in progress. Processes a small batch of city×category combinations,
+	 * imports whatever is clearly new as "Pending", and reschedules itself
+	 * until the queue is empty — never all 69 at once, so no single request
+	 * ever risks a hosting timeout.
+	 */
+	public function process_job_batch() {
+		$job = $this->get_job();
+		if ( ! $job || empty( $job['queue'] ) ) {
+			if ( $job ) {
+				$this->finish_job( $job );
+			}
+			return;
+		}
+
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 120 );
+		}
+
+		$key = get_option( self::OPTION_KEY_PREFIX . $job['provider'], '' );
+		if ( '' === $key ) {
+			$job['error'] = __( 'API key was removed while this job was running.', 'ka-listing-bulk-importer' );
+			$this->finish_job( $job );
+			return;
+		}
+
+		$batch = array_splice( $job['queue'], 0, self::JOB_BATCH_SIZE );
+		foreach ( $batch as $pair ) {
+			$cat_term = get_term_by( 'slug', $pair['category'], self::TAX_CATEGORY );
+			if ( ! $cat_term ) {
+				$job['done']++;
+				continue;
+			}
+			$found = ( 'google' === $job['provider'] )
+				? $this->discover_google( $key, $pair['location'], $cat_term, $job['max'] )
+				: $this->discover_ai( $job['provider'], $key, $pair['location'], $cat_term, $job['max'] );
+
+			if ( ! is_wp_error( $found ) ) {
+				foreach ( $found as $i => $fields ) {
+					$record = $this->make_record( $i, $fields );
+					if ( ! empty( $record['errors'] ) || ! empty( $record['duplicates'] ) ) {
+						$job['skipped']++;
+						continue; // background jobs only ever add clearly-new listings — anything ambiguous needs a human, via the normal Discover preview
+					}
+					$write = $this->write_row( $record['fields'], 'pending', 0 );
+					if ( ! is_wp_error( $write['post_id'] ) ) {
+						$job['created']++;
+					} else {
+						$job['skipped']++;
+					}
+				}
+				$this->log_discover_search( $pair['location'], $cat_term->name, $job['provider'], 'new_only', count( $found ), 0 );
+
+				$is_ai        = self::PROVIDERS[ $job['provider'] ]['is_ai'];
+				$active_model = $is_ai ? get_option( self::OPTION_MODEL_PREFIX . $job['provider'], self::PROVIDERS[ $job['provider'] ]['default_model'] ) : '';
+				$cost_each    = (float) get_option( $this->cost_option_key( $job['provider'], $active_model ), 0 );
+				if ( $cost_each > 0 && ! empty( $found ) ) {
+					$spend_option = self::OPTION_SPEND_PREFIX . $job['provider'];
+					update_option( $spend_option, (float) get_option( $spend_option, 0 ) + ( $cost_each * count( $found ) ), false );
+				}
+			}
+			$job['done']++;
+		}
+
+		if ( empty( $job['queue'] ) ) {
+			$this->finish_job( $job );
+			return;
+		}
+
+		update_option( self::OPTION_JOB, $job, false );
+		wp_schedule_single_event( time() + self::JOB_TICK_DELAY, self::JOB_CRON_HOOK );
+	}
+
+	private function finish_job( array $job ) {
+		delete_option( self::OPTION_JOB );
+
+		$to = get_option( 'admin_email' );
+		if ( ! $to ) {
+			return;
+		}
+		$subject = sprintf(
+			/* translators: 1: site name, 2: number of listings created */
+			__( '[%1$s] Background Discover run finished: %2$d new listing(s) added', 'ka-listing-bulk-importer' ),
+			get_bloginfo( 'name' ),
+			(int) $job['created']
+		);
+		$body  = ! empty( $job['error'] )
+			? sprintf( __( 'The background search stopped early: %s', 'ka-listing-bulk-importer' ), $job['error'] ) . "\n\n"
+			: '';
+		$body .= sprintf(
+			/* translators: 1: combinations processed, 2: listings added, 3: listings skipped */
+			__( 'Processed %1$d city/category combination(s): %2$d new listing(s) added as Pending, %3$d skipped (already existed or had a problem).', 'ka-listing-bulk-importer' ),
+			(int) $job['done'],
+			(int) $job['created'],
+			(int) $job['skipped']
+		) . "\n\n";
+		$body .= __( 'Review and publish the new ones here:', 'ka-listing-bulk-importer' ) . "\n";
+		$body .= admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&post_status=pending' ) . "\n";
+
+		wp_mail( $to, $subject, $body );
 	}
 
 	/**
@@ -3180,7 +3610,64 @@ class KA_Listing_Bulk_Importer {
 
 	private function get_schedules() {
 		$schedules = get_option( self::OPTION_SCHEDULES, array() );
-		return is_array( $schedules ) ? $schedules : array();
+		if ( ! is_array( $schedules ) ) {
+			return array();
+		}
+		// Normalize older entries: single 'category' string => 'categories' array, and add 'enabled'.
+		foreach ( $schedules as &$s ) {
+			if ( ! isset( $s['categories'] ) || ! is_array( $s['categories'] ) ) {
+				$s['categories'] = ( isset( $s['category'] ) && '' !== $s['category'] ) ? array( $s['category'] ) : array();
+			}
+			if ( ! isset( $s['enabled'] ) ) {
+				$s['enabled'] = true;
+			}
+		}
+		unset( $s );
+		return $schedules;
+	}
+
+	/** Appends one entry to the persistent schedule run log (newest first), capped at SCHEDULE_LOG_MAX entries. */
+	private function log_schedule_run( array $s, $status, array $result = array() ) {
+		$log = get_option( self::OPTION_SCHEDULE_LOG, array() );
+		if ( ! is_array( $log ) ) {
+			$log = array();
+		}
+		$cat_label = '';
+		if ( ! empty( $result['category'] ) ) {
+			$cat_label = $result['category'];
+		} elseif ( ! empty( $s['categories'] ) ) {
+			$names = array();
+			foreach ( $s['categories'] as $slug ) {
+				$t = get_term_by( 'slug', $slug, self::TAX_CATEGORY );
+				$names[] = $t ? $t->name : $slug;
+			}
+			$cat_label = implode( ', ', $names );
+		} else {
+			$cat_label = __( 'all categories', 'ka-listing-bulk-importer' );
+		}
+
+		array_unshift( $log, array(
+			'time'     => current_time( 'mysql' ),
+			'sch_id'   => $s['id'],
+			'location' => $s['location'],
+			'category' => $cat_label,
+			'provider' => self::PROVIDERS[ $s['provider'] ]['label'] ?? $s['provider'],
+			'status'   => $status, // 'ran' | 'skipped_not_due' | 'skipped_disabled' | 'error'
+			'found'    => isset( $result['found'] ) ? (int) $result['found'] : 0,
+			'created'  => isset( $result['created'] ) ? (int) $result['created'] : 0,
+			'skipped'  => isset( $result['skipped'] ) ? (int) $result['skipped'] : 0,
+			'message'  => isset( $result['error'] ) ? $result['error'] : '',
+		) );
+
+		if ( count( $log ) > self::SCHEDULE_LOG_MAX ) {
+			$log = array_slice( $log, 0, self::SCHEDULE_LOG_MAX );
+		}
+		update_option( self::OPTION_SCHEDULE_LOG, $log, false );
+	}
+
+	private function get_schedule_log() {
+		$log = get_option( self::OPTION_SCHEDULE_LOG, array() );
+		return is_array( $log ) ? $log : array();
 	}
 
 	public function handle_save_schedule() {
@@ -3189,11 +3676,20 @@ class KA_Listing_Bulk_Importer {
 		}
 		check_admin_referer( self::SCHEDULE_NONCE );
 
-		$location = isset( $_POST['ka_lbi_sch_location'] ) ? sanitize_text_field( wp_unslash( $_POST['ka_lbi_sch_location'] ) ) : '';
-		$cat_slug = isset( $_POST['ka_lbi_sch_category'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_sch_category'] ) ) : '';
+		$edit_id   = isset( $_POST['ka_lbi_sch_id'] ) ? sanitize_text_field( wp_unslash( $_POST['ka_lbi_sch_id'] ) ) : '';
+		$location  = isset( $_POST['ka_lbi_sch_location'] ) ? sanitize_text_field( wp_unslash( $_POST['ka_lbi_sch_location'] ) ) : '';
+		$raw_cats  = isset( $_POST['ka_lbi_sch_category'] ) ? (array) wp_unslash( $_POST['ka_lbi_sch_category'] ) : array();
+		$cat_slugs = array();
+		foreach ( $raw_cats as $c ) {
+			$c = sanitize_key( $c );
+			if ( '' !== $c && get_term_by( 'slug', $c, self::TAX_CATEGORY ) ) {
+				$cat_slugs[] = $c;
+			}
+		}
 		$provider = isset( $_POST['ka_lbi_sch_provider'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_sch_provider'] ) ) : '';
 		$max      = isset( $_POST['ka_lbi_sch_max'] ) ? absint( $_POST['ka_lbi_sch_max'] ) : 20;
 		$freq     = isset( $_POST['ka_lbi_sch_freq'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_sch_freq'] ) ) : 'weekly';
+		$enabled  = ! empty( $_POST['ka_lbi_sch_enabled'] );
 
 		$max = max( 1, min( self::MAX_DISCOVER_RESULTS, $max ) );
 		if ( ! in_array( $freq, array( 'daily', 'weekly' ), true ) ) {
@@ -3203,20 +3699,65 @@ class KA_Listing_Bulk_Importer {
 			$this->die_back( __( 'Please fill in a city and a data source for the schedule.', 'ka-listing-bulk-importer' ) );
 		}
 
-		$schedules   = $this->get_schedules();
-		$schedules[] = array(
-			'id'       => wp_generate_uuid4(),
-			'location' => $location,
-			'category' => $cat_slug, // '' means "all categories"
-			'provider' => $provider,
-			'max'      => $max,
-			'freq'     => $freq,
-			'created'  => current_time( 'mysql' ),
-			'last_run' => '',
-		);
+		$schedules = $this->get_schedules();
+
+		if ( $edit_id ) {
+			$found = false;
+			foreach ( $schedules as &$s ) {
+				if ( $s['id'] === $edit_id ) {
+					$s['location']   = $location;
+					$s['categories'] = $cat_slugs; // empty = all categories
+					$s['category']   = ''; // keep the legacy key harmless/unused
+					$s['provider']   = $provider;
+					$s['max']        = $max;
+					$s['freq']       = $freq;
+					$s['enabled']    = $enabled;
+					$found = true;
+					break;
+				}
+			}
+			unset( $s );
+			if ( ! $found ) {
+				$this->die_back( __( 'That scheduled search no longer exists — it may have been removed already.', 'ka-listing-bulk-importer' ) );
+			}
+		} else {
+			$schedules[] = array(
+				'id'         => wp_generate_uuid4(),
+				'location'   => $location,
+				'categories' => $cat_slugs, // empty = all categories
+				'category'   => '', // legacy key, unused going forward
+				'provider'   => $provider,
+				'max'        => $max,
+				'freq'       => $freq,
+				'enabled'    => $enabled,
+				'created'    => current_time( 'mysql' ),
+				'last_run'   => '',
+			);
+		}
 		update_option( self::OPTION_SCHEDULES, $schedules, false );
 
-		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-settings' ) );
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-schedules&ka_lbi_saved=1' ) );
+		exit;
+	}
+
+	/** Enable/disable a schedule without deleting it (its due-date accounting is left untouched). */
+	public function handle_toggle_schedule() {
+		if ( ! current_user_can( self::SETTINGS_CAP ) ) {
+			wp_die( esc_html__( 'You do not have permission to do this.', 'ka-listing-bulk-importer' ), 403 );
+		}
+		check_admin_referer( self::SCHEDULE_NONCE );
+
+		$id        = isset( $_GET['id'] ) ? sanitize_text_field( wp_unslash( $_GET['id'] ) ) : '';
+		$schedules = $this->get_schedules();
+		foreach ( $schedules as &$s ) {
+			if ( $s['id'] === $id ) {
+				$s['enabled'] = empty( $s['enabled'] );
+			}
+		}
+		unset( $s );
+		update_option( self::OPTION_SCHEDULES, $schedules, false );
+
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-schedules' ) );
 		exit;
 	}
 
@@ -3232,11 +3773,11 @@ class KA_Listing_Bulk_Importer {
 		} ) );
 		update_option( self::OPTION_SCHEDULES, $schedules, false );
 
-		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-settings' ) );
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-schedules' ) );
 		exit;
 	}
 
-	/** Manual "run now" for testing a saved schedule without waiting for cron. */
+	/** Manual "run now" for testing a saved schedule without waiting for cron — runs regardless of its due date or enabled/disabled state. */
 	public function handle_run_schedule_now() {
 		if ( ! current_user_can( self::SETTINGS_CAP ) ) {
 			wp_die( esc_html__( 'You do not have permission to do this.', 'ka-listing-bulk-importer' ), 403 );
@@ -3248,12 +3789,13 @@ class KA_Listing_Bulk_Importer {
 			if ( $s['id'] === $id ) {
 				$summary = $this->execute_one_schedule( $s );
 				$this->update_schedule_last_run( $id );
+				$this->log_schedule_run( $s, ! empty( $summary['error'] ) ? 'error' : 'ran', $summary );
 				$this->email_schedule_summary( array( $summary ) );
 				break;
 			}
 		}
 
-		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-settings&ka_lbi_ran=1' ) );
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-schedules&ka_lbi_ran=1' ) );
 		exit;
 	}
 
@@ -3283,13 +3825,20 @@ class KA_Listing_Bulk_Importer {
 
 		$summaries = array();
 		foreach ( $schedules as $s ) {
+			if ( empty( $s['enabled'] ) ) {
+				$this->log_schedule_run( $s, 'skipped_disabled' );
+				continue;
+			}
 			$interval_seconds = ( 'daily' === $s['freq'] ) ? DAY_IN_SECONDS : ( 7 * DAY_IN_SECONDS );
 			$last_run_ts      = ! empty( $s['last_run'] ) ? strtotime( $s['last_run'] ) : 0;
 			if ( $last_run_ts && ( time() - $last_run_ts ) < ( $interval_seconds - HOUR_IN_SECONDS ) ) {
+				$this->log_schedule_run( $s, 'skipped_not_due' );
 				continue; // not due yet
 			}
-			$summaries[] = $this->execute_one_schedule( $s );
+			$result      = $this->execute_one_schedule( $s );
+			$summaries[] = $result;
 			$this->update_schedule_last_run( $s['id'] );
+			$this->log_schedule_run( $s, ! empty( $result['error'] ) ? 'error' : 'ran', $result );
 		}
 
 		if ( ! empty( $summaries ) ) {
@@ -3314,7 +3863,8 @@ class KA_Listing_Bulk_Importer {
 			return $result;
 		}
 
-		$all_categories = ( '' === $s['category'] );
+		$sel_cats       = ! empty( $s['categories'] ) && is_array( $s['categories'] ) ? $s['categories'] : array();
+		$all_categories = empty( $sel_cats );
 		if ( $all_categories ) {
 			$search_categories = get_terms( array( 'taxonomy' => self::TAX_CATEGORY, 'hide_empty' => false ) );
 			if ( is_wp_error( $search_categories ) || empty( $search_categories ) ) {
@@ -3322,14 +3872,19 @@ class KA_Listing_Bulk_Importer {
 				return $result;
 			}
 		} else {
-			$category = get_term_by( 'slug', $s['category'], self::TAX_CATEGORY );
-			if ( ! $category ) {
-				$result['error'] = __( 'Saved category no longer exists.', 'ka-listing-bulk-importer' );
+			$search_categories = array();
+			foreach ( $sel_cats as $slug ) {
+				$t = get_term_by( 'slug', $slug, self::TAX_CATEGORY );
+				if ( $t ) {
+					$search_categories[] = $t;
+				}
+			}
+			if ( empty( $search_categories ) ) {
+				$result['error'] = __( 'None of the saved categories exist anymore.', 'ka-listing-bulk-importer' );
 				return $result;
 			}
-			$search_categories = array( $category );
 		}
-		$result['category'] = $all_categories ? __( 'all categories', 'ka-listing-bulk-importer' ) : $category->name;
+		$result['category'] = $all_categories ? __( 'all categories', 'ka-listing-bulk-importer' ) : implode( ', ', wp_list_pluck( $search_categories, 'name' ) );
 
 		if ( function_exists( 'set_time_limit' ) ) {
 			@set_time_limit( 240 );
