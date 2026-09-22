@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 2.7.0
+ * Version: 2.7.1
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -99,6 +99,7 @@ class KA_Listing_Bulk_Importer {
 
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
+		add_action( 'current_screen', array( $this, 'prevent_admin_page_caching' ) );
 		add_action( 'admin_post_ka_lbi_upload', array( $this, 'handle_upload' ) );
 		add_action( 'admin_post_ka_lbi_preview', array( $this, 'handle_preview' ) );
 		add_action( 'admin_post_ka_lbi_import', array( $this, 'handle_import' ) );
@@ -151,6 +152,22 @@ class KA_Listing_Bulk_Importer {
 		}
 		$data = get_plugin_data( __FILE__, false, false );
 		return ! empty( $data['Version'] ) ? $data['Version'] : self::VERSION_FALLBACK;
+	}
+
+	/**
+	 * A caching/CDN plugin that (incorrectly) caches logged-in admin screens can serve a page
+	 * with an already-expired form nonce baked into it, which surfaces to the user as
+	 * "The link you followed has expired." on submit. Force this plugin's own admin screens
+	 * to always be fetched fresh so that never happens.
+	 */
+	public function prevent_admin_page_caching( $screen ) {
+		if ( ! $screen || false === strpos( (string) $screen->id, 'ka-lbi-' ) ) {
+			return;
+		}
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
+		nocache_headers();
 	}
 
 	/** Create (once) the folder where the user can place source photos directly on this server. */

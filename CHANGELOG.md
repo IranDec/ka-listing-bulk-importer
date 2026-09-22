@@ -4,7 +4,12 @@ All notable changes to this plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2.7.0] - Current release
+## [2.7.1] - Current release
+
+### Fixed
+- "The link you followed has expired" error when submitting the Discover form on sites running a caching/CDN plugin — the plugin's own admin screens are now marked non-cacheable (`DONOTCACHEPAGE`, no-cache headers) so a stale page with an already-expired nonce is never served.
+
+## [2.7.0]
 
 ### Added
 - Live, per-provider model lists for AI sources (Claude, Gemini, ChatGPT), fetched from each provider's own API once a working key is saved, with a "Refresh model list" action.

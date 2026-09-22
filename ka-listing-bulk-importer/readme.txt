@@ -6,7 +6,7 @@ Tags: listingpro, listings, bulk import, csv import, google maps, business direc
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 2.7.0
+Stable tag: 2.7.1
 License: Commercial (see LICENSE.txt)
 
 Bulk-import ListingPro business listings from a CSV file, or auto-discover them by place + category using Google Maps, Claude, Gemini or ChatGPT.
@@ -65,6 +65,9 @@ Yes. Every import is logged, and the whole batch can be reverted in one click fr
 == Changelog ==
 
 See [CHANGELOG.md](../CHANGELOG.md) for the full version history.
+
+= 2.7.1 =
+* Fixed a "The link you followed has expired" error some users hit submitting the Discover form on sites running a caching/CDN plugin, by marking this plugin's admin screens as non-cacheable.
 
 = 2.7.0 =
 * Live per-provider model lists for AI sources, with a manual refresh action.
