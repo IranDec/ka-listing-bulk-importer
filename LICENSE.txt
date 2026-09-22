@@ -1,0 +1,23 @@
+KA Schindler - Listing Bulk Importer
+Copyright (c) Mohammad Babaei (https://adschi.com)
+
+This software is licensed, not sold. Purchase or authorized distribution of
+this plugin grants the buyer a non-exclusive, non-transferable license to
+use it on the number of sites/domains stated by the marketplace listing or
+sale agreement under which it was obtained.
+
+Unless otherwise agreed in writing with the author:
+
+1. You MAY use this plugin on the licensed number of live/production sites
+   plus staging/development copies of those same sites.
+2. You MAY modify the plugin's code for your own use on licensed sites.
+3. You MAY NOT resell, sublicense, redistribute, or share this plugin's
+   source code, in modified or unmodified form, as a standalone product or
+   bundled with another product.
+4. You MAY NOT claim authorship of this plugin.
+5. This plugin is provided "as is", without warranty of any kind, express
+   or implied. In no event shall the author be liable for any claim,
+   damages, or other liability arising from its use.
+
+For licensing beyond the above (multi-site packs, white-label, or resale
+rights), contact the author at https://adschi.com.
