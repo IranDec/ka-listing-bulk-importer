@@ -4,7 +4,12 @@ All notable changes to this plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2.7.1] - Current release
+## [2.8.1] - Current release
+
+### Changed
+- Discover no longer hard-rejects a multi-city/"all categories" run once it passes 24 city/category combinations. It now runs the whole batch in one go (up to a 200-combination safety ceiling) and adds a note to the results if it exceeded the normal recommended batch size, instead of stopping the search entirely.
+
+## [2.7.1]
 
 ### Fixed
 - "The link you followed has expired" error when submitting the Discover form on sites running a caching/CDN plugin — the plugin's own admin screens are now marked non-cacheable (`DONOTCACHEPAGE`, no-cache headers) so a stale page with an already-expired nonce is never served.

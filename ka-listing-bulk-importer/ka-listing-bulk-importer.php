@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 2.8.0
+ * Version: 2.9.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '2.7.0'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '2.8.0'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -916,13 +916,14 @@ class KA_Listing_Bulk_Importer {
 		}
 
 		// Pre-fill from a "check what already exists" round trip (GET) so the form keeps the user's choices.
-		$sel_location_slug = isset( $_GET['ka_lbi_loc_slug'] ) ? sanitize_key( wp_unslash( $_GET['ka_lbi_loc_slug'] ) ) : '';
-		$sel_category_slug = isset( $_GET['ka_lbi_category'] ) ? sanitize_key( wp_unslash( $_GET['ka_lbi_category'] ) ) : '';
-		$checking_existing = isset( $_GET['ka_lbi_check'] ) && ! empty( $locations ) && '' !== $sel_location_slug;
+		$sel_location_slug  = isset( $_GET['ka_lbi_loc_slug'] ) ? sanitize_key( wp_unslash( $_GET['ka_lbi_loc_slug'] ) ) : '';
+		$sel_category_slugs = isset( $_GET['ka_lbi_category'] ) ? array_map( 'sanitize_key', (array) wp_unslash( $_GET['ka_lbi_category'] ) ) : array();
+		$checking_existing  = isset( $_GET['ka_lbi_check'] ) && ! empty( $locations ) && '' !== $sel_location_slug;
 
 		if ( $checking_existing ) {
 			$loc_term = get_term_by( 'slug', $sel_location_slug, self::TAX_LOCATION );
-			$cat_term = ( '' !== $sel_category_slug ) ? get_term_by( 'slug', $sel_category_slug, self::TAX_CATEGORY ) : null;
+			// The "see what already exists" check only makes sense against a single category — with none or several picked, it shows everything for the city instead.
+			$cat_term = ( 1 === count( $sel_category_slugs ) ) ? get_term_by( 'slug', $sel_category_slugs[0], self::TAX_CATEGORY ) : null;
 			if ( $loc_term ) {
 				$existing = $this->find_existing_for_place( $loc_term, $cat_term ?: null );
 				?>
@@ -1010,18 +1011,27 @@ class KA_Listing_Bulk_Importer {
 					</td>
 				</tr>
 				<tr>
-					<th><label for="ka_lbi_category"><?php esc_html_e( 'Category', 'ka-listing-bulk-importer' ); ?></label></th>
+					<th><?php esc_html_e( 'Category', 'ka-listing-bulk-importer' ); ?></th>
 					<td>
-						<select name="ka_lbi_category" id="ka_lbi_category">
-							<option value="" <?php selected( $sel_category_slug, '' ); ?>><?php esc_html_e( 'All categories', 'ka-listing-bulk-importer' ); ?></option>
+						<p>
+							<a href="#" id="ka_lbi_cat_all"><?php esc_html_e( 'Select all', 'ka-listing-bulk-importer' ); ?></a>
+							&nbsp;|&nbsp;
+							<a href="#" id="ka_lbi_cat_none"><?php esc_html_e( 'Clear', 'ka-listing-bulk-importer' ); ?></a>
+							&nbsp;—&nbsp;
+							<span id="ka_lbi_cat_count" class="description"></span>
+						</p>
+						<div id="ka_lbi_category_box" style="max-height:220px;overflow-y:auto;border:1px solid #dcdcde;border-radius:4px;padding:8px 12px;max-width:420px;background:#fff;">
 							<?php foreach ( $categories as $cat ) : ?>
-								<option value="<?php echo esc_attr( $cat->slug ); ?>" <?php selected( $sel_category_slug, $cat->slug ); ?>><?php echo esc_html( $cat->name ); ?></option>
+								<label style="display:block;margin:3px 0;">
+									<input type="checkbox" class="ka-lbi-cat-checkbox" name="ka_lbi_category[]" value="<?php echo esc_attr( $cat->slug ); ?>" <?php checked( in_array( $cat->slug, $sel_category_slugs, true ) ); ?> />
+									<?php echo esc_html( $cat->name ); ?>
+								</label>
 							<?php endforeach; ?>
-						</select>
-						<p class="description"><?php esc_html_e( '"All categories" searches once per category on your site and combines the results, up to the total below.', 'ka-listing-bulk-importer' ); ?></p>
+						</div>
+						<p class="description"><?php esc_html_e( 'Leave none checked to search all categories — but a category runs a separate search each, so pick just the relevant ones (up to 24 city/category combinations per run) rather than truly everything at once.', 'ka-listing-bulk-importer' ); ?></p>
 						<?php if ( ! empty( $locations ) ) : ?>
 							<button type="submit" formmethod="get" formaction="<?php echo esc_url( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-discover&ka_lbi_check=1' ) ); ?>" name="ka_lbi_loc_slug" id="ka_lbi_check_btn" class="button" value="<?php echo esc_attr( $sel_location_slug ); ?>" disabled>
-								<?php esc_html_e( 'See what already exists', 'ka-listing-bulk-importer' ); ?>
+								<?php esc_html_e( 'See what already exists (this city, all categories)', 'ka-listing-bulk-importer' ); ?>
 							</button>
 						<?php endif; ?>
 					</td>
@@ -1100,39 +1110,81 @@ class KA_Listing_Bulk_Importer {
 
 		<script>
 		(function() {
-			var maxInput   = document.getElementById('ka_lbi_max_results');
-			var out        = document.getElementById('ka_lbi_cost_estimate');
-			var radios     = document.querySelectorAll('input[name="ka_lbi_provider"]');
-			var catSelect  = document.getElementById('ka_lbi_category');
-			var bulkArea   = document.getElementById('ka_lbi_locations_bulk');
+			var maxInput      = document.getElementById('ka_lbi_max_results');
+			var out           = document.getElementById('ka_lbi_cost_estimate');
+			var radios        = document.querySelectorAll('input[name="ka_lbi_provider"]');
+			var catBoxes      = document.querySelectorAll('.ka-lbi-cat-checkbox');
+			var catCountLabel = document.getElementById('ka_lbi_cat_count');
+			var bulkArea      = document.getElementById('ka_lbi_locations_bulk');
+			var TOTAL_CATS    = <?php echo (int) count( $categories ); ?>;
+			var MAX_COMBOS    = <?php echo (int) self::MAX_DISCOVER_COMBOS; ?>;
+
+			function checkedCatCount() {
+				var n = 0;
+				catBoxes.forEach(function(c){ if (c.checked) n++; });
+				return n; // 0 means "all categories"
+			}
 			function comboCount() {
 				var cities = 1;
 				if (bulkArea && bulkArea.value.trim() !== '') {
 					cities = bulkArea.value.split(/[\r\n,]+/).map(function(s){ return s.trim(); }).filter(Boolean).length || 1;
 				}
-				var cats = (catSelect && catSelect.value === '') ? <?php echo (int) count( $categories ); ?> : 1;
+				var checkedCount = checkedCatCount();
+				var cats = checkedCount > 0 ? checkedCount : TOTAL_CATS;
 				return Math.max( 1, cities * cats );
 			}
+			function updateCatCountLabel() {
+				if (!catCountLabel) { return; }
+				var n = checkedCatCount();
+				catCountLabel.textContent = n > 0
+					? n + ' ' + <?php echo wp_json_encode( __( 'selected', 'ka-listing-bulk-importer' ) ); ?>
+					: <?php echo wp_json_encode( __( 'none selected — searches all categories', 'ka-listing-bulk-importer' ) ); ?>;
+			}
 			function update() {
+				updateCatCountLabel();
 				var cost = 0, checked = null;
 				radios.forEach(function(r){ if (r.checked) checked = r; });
 				if (!checked) { out.textContent = ''; return; }
 				cost = parseFloat(checked.getAttribute('data-cost')) || 0;
 				var n = parseInt(maxInput.value, 10) || 0;
 				var combos = comboCount();
-				var total = n * Math.min( combos, <?php echo (int) self::MAX_DISCOVER_COMBOS; ?> );
+				var overCap = combos > MAX_COMBOS;
+				var total = n * Math.min( combos, MAX_COMBOS );
 				if (cost > 0 && n > 0) {
 					var label = combos > 1 ? (<?php echo wp_json_encode( __( 'estimated for all combinations', 'ka-listing-bulk-importer' ) ); ?>) : (<?php echo wp_json_encode( __( 'estimated', 'ka-listing-bulk-importer' ) ); ?>);
 					out.textContent = '≈ $' + (cost * total).toFixed(2) + ' ' + label;
 				} else {
 					out.textContent = <?php echo wp_json_encode( __( 'no cost estimate saved for this source — add one in Settings', 'ka-listing-bulk-importer' ) ); ?>;
 				}
+				if (overCap) {
+					out.textContent += ' — ' + combos + ' ' + <?php echo wp_json_encode( __( 'city/category combinations — over the limit of', 'ka-listing-bulk-importer' ) ); ?> + ' ' + MAX_COMBOS + '. ' + <?php echo wp_json_encode( __( 'Pick fewer categories or cities before starting.', 'ka-listing-bulk-importer' ) ); ?>;
+					out.style.color = '#b32d2e';
+				} else {
+					out.style.color = '';
+				}
 			}
 			maxInput.addEventListener('input', update);
 			radios.forEach(function(r){ r.addEventListener('change', update); });
-			if (catSelect) { catSelect.addEventListener('change', update); }
+			catBoxes.forEach(function(c){ c.addEventListener('change', update); });
 			if (bulkArea) { bulkArea.addEventListener('input', update); }
 			update();
+
+			var catAllLink  = document.getElementById('ka_lbi_cat_all');
+			var catNoneLink = document.getElementById('ka_lbi_cat_none');
+			if (catAllLink) {
+				catAllLink.addEventListener('click', function(e) {
+					e.preventDefault();
+					catBoxes.forEach(function(c){ c.checked = true; });
+					update();
+				});
+			}
+			if (catNoneLink) {
+				catNoneLink.addEventListener('click', function(e) {
+					e.preventDefault();
+					catBoxes.forEach(function(c){ c.checked = false; });
+					update();
+				});
+			}
 
 			// City select <-> free-text "add new place" field.
 			var citySelect = document.getElementById('ka_lbi_location_select');
@@ -1356,7 +1408,7 @@ class KA_Listing_Bulk_Importer {
 
 		$location     = isset( $_POST['ka_lbi_location'] ) ? sanitize_text_field( wp_unslash( $_POST['ka_lbi_location'] ) ) : '';
 		$bulk_raw     = isset( $_POST['ka_lbi_locations_bulk'] ) ? sanitize_textarea_field( wp_unslash( $_POST['ka_lbi_locations_bulk'] ) ) : '';
-		$cat_slug     = isset( $_POST['ka_lbi_category'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_category'] ) ) : '';
+		$cat_slugs    = isset( $_POST['ka_lbi_category'] ) ? array_values( array_unique( array_filter( array_map( 'sanitize_key', (array) wp_unslash( $_POST['ka_lbi_category'] ) ) ) ) ) : array();
 		$provider     = isset( $_POST['ka_lbi_provider'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_provider'] ) ) : '';
 		$max          = isset( $_POST['ka_lbi_max_results'] ) ? absint( $_POST['ka_lbi_max_results'] ) : 20;
 		$status       = isset( $_POST['ka_lbi_status'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_status'] ) ) : 'pending';
@@ -1385,18 +1437,24 @@ class KA_Listing_Bulk_Importer {
 			$this->die_back( __( 'Please enter at least one city or village.', 'ka-listing-bulk-importer' ) );
 		}
 
-		$all_categories = ( '' === $cat_slug );
+		$all_categories = empty( $cat_slugs );
 		if ( $all_categories ) {
 			$search_categories = get_terms( array( 'taxonomy' => self::TAX_CATEGORY, 'hide_empty' => false ) );
 			if ( is_wp_error( $search_categories ) || empty( $search_categories ) ) {
 				$this->die_back( __( 'No categories exist yet — add at least one under Listings → Categories first.', 'ka-listing-bulk-importer' ) );
 			}
 		} else {
-			$category = get_term_by( 'slug', $cat_slug, self::TAX_CATEGORY );
-			if ( ! $category || is_wp_error( $category ) ) {
-				$this->die_back( __( 'Please choose a valid category.', 'ka-listing-bulk-importer' ) );
+			$search_categories = array();
+			foreach ( $cat_slugs as $one_slug ) {
+				$term = get_term_by( 'slug', $one_slug, self::TAX_CATEGORY );
+				if ( $term && ! is_wp_error( $term ) ) {
+					$search_categories[] = $term;
+				}
 			}
-			$search_categories = array( $category );
+			if ( empty( $search_categories ) ) {
+				$this->die_back( __( 'Please choose at least one valid category.', 'ka-listing-bulk-importer' ) );
+			}
+			$category = $search_categories[0]; // used only for the single-category label/messages below
 		}
 
 		$combo_count = count( $location_list ) * count( $search_categories );
@@ -1457,7 +1515,17 @@ class KA_Listing_Bulk_Importer {
 		set_transient( $this->tkey( 'mode' ), $mode, self::TRANSIENT_TTL );
 
 		$is_ai           = self::PROVIDERS[ $provider ]['is_ai'];
-		$category_label  = $all_categories ? __( 'all categories', 'ka-listing-bulk-importer' ) : $category->name;
+		if ( $all_categories ) {
+			$category_label = __( 'all categories', 'ka-listing-bulk-importer' );
+		} elseif ( count( $search_categories ) > 1 ) {
+			$category_label = sprintf(
+				/* translators: %d: number of categories selected */
+				__( '%d selected categories', 'ka-listing-bulk-importer' ),
+				count( $search_categories )
+			);
+		} else {
+			$category_label = $category->name;
+		}
 		$location_label  = ( count( $location_list ) > 1 )
 			? sprintf(
 				/* translators: 1: first city, 2: number of additional cities */
