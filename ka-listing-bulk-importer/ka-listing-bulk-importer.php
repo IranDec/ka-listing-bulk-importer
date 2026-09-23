@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 3.4.1
+ * Version: 3.5.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '3.4.0'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '3.4.1'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -45,8 +45,16 @@ class KA_Listing_Bulk_Importer {
 	const JOB_CRON_HOOK        = 'ka_lbi_process_job_batch';
 	const JOB_BATCH_SIZE       = 1;  // city×category combinations processed per background tick — deliberately small; see JOB_MAX_RESULTS_CAP below for why
 	const JOB_MAX_RESULTS_CAP  = 5;  // hard ceiling on results-per-combination actually used inside a background tick, REGARDLESS of what the form asked for. Google's Place Details is fetched once per result found, sequentially — a high "how many results" value (this plugin allows up to 60) turned into up to 60 sequential HTTP calls inside a single tick, which could tie up a PHP worker for many minutes and, combined with live polling, was enough to take the whole site down. The interactive/preview path (MAX_DISCOVER_COMBOS-limited) is unaffected — this cap applies only inside run_job_tick().
-	const JOB_TICK_DELAY       = 25; // seconds between ticks when WP-Cron alone is driving it (no admin watching)
-	const JOB_MIN_GAP          = 25; // seconds between ticks when the admin has the status card open and it's polling live — kept slow on purpose (see JOB_MAX_RESULTS_CAP) so live polling can never pile up faster than a tick can safely finish
+	const JOB_TICK_DELAY       = 25; // seconds between ticks when WP-Cron alone is driving it (no admin watching) — Google Maps only, see JOB_*_AI below
+	const JOB_MIN_GAP          = 25; // seconds between ticks when the admin has the status card open and it's polling live — kept slow on purpose (see JOB_MAX_RESULTS_CAP) so live polling can never pile up faster than a tick can safely finish. Google Maps only.
+	// The AI providers (Claude/Gemini/ChatGPT) make exactly ONE outbound HTTP call per city/category
+	// combination — never multiplied per-result the way Google's Place Details lookups are — so the
+	// worker-exhaustion risk that forced Google Maps this slow simply doesn't apply the same way.
+	// Several times faster on purpose; still throttled, just not as hard.
+	const JOB_BATCH_SIZE_AI    = 3;
+	const JOB_TICK_DELAY_AI    = 8;
+	const JOB_MIN_GAP_AI       = 8;
+	const JOB_POLL_MS_AI       = 6000;
 	const JOB_LOCK_KEY         = 'ka_lbi_job_lock';      // short-lived lock so a live poll and a WP-Cron tick can never process the same batch twice
 	const OPTION_PHOTO_JOB     = 'ka_lbi_photo_job';      // the one background "backfill every photo" job, if any is in progress
 	const PHOTO_JOB_CRON_HOOK  = 'ka_lbi_process_photo_job_batch';
@@ -1483,7 +1491,7 @@ class KA_Listing_Bulk_Importer {
 					.catch( function() { /* a network hiccup — the next tick just tries again */ } );
 			}
 			tick();
-			timer = setInterval( tick, 15000 ); // deliberately slow — see JOB_MAX_RESULTS_CAP in the PHP for why this can't be fast
+			timer = setInterval( tick, opts.intervalMs || 15000 ); // slow by default — see JOB_MAX_RESULTS_CAP in the PHP; AI-sourced jobs pass a faster interval since each combo is only one HTTP call, not several
 			return { stop: function() { clearInterval( timer ); } };
 		};
 		</script>
@@ -1498,6 +1506,7 @@ class KA_Listing_Bulk_Importer {
 		$job = $this->get_job();
 		if ( ! $job ) {
 			$this->render_last_job_error_notice( 'discover' );
+			$this->render_last_job_summary( 'discover' );
 			return;
 		}
 		$this->render_job_poll_script();
@@ -1515,6 +1524,13 @@ class KA_Listing_Bulk_Importer {
 			<div style="background:#f0f0f1;border-radius:4px;height:10px;overflow:hidden;max-width:420px;">
 				<div id="ka_lbi_job_bar" style="background:#2271b1;height:10px;width:<?php echo (int) $pct; ?>%;transition:width .4s ease;"></div>
 			</div>
+			<p class="description" style="margin-top:10px;" id="ka_lbi_job_detail">
+				<span id="ka_lbi_job_empty"><?php echo (int) ( $job['empty_combos'] ?? 0 ); ?></span> <?php esc_html_e( 'search(es) came back with nothing (no confident match found), and', 'ka-listing-bulk-importer' ); ?>
+				<span id="ka_lbi_job_errcount"><?php echo (int) ( $job['provider_errors'] ?? 0 ); ?></span> <?php esc_html_e( 'failed to even reach the source.', 'ka-listing-bulk-importer' ); ?>
+				<?php if ( ! empty( $job['last_provider_error'] ) ) : ?>
+					<br /><strong><?php esc_html_e( 'Last error:', 'ka-listing-bulk-importer' ); ?></strong> <span id="ka_lbi_job_lasterr"><?php echo esc_html( $job['last_provider_error'] ); ?></span>
+				<?php endif; ?>
+			</p>
 			<p style="margin-top:12px;">
 				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=ka_lbi_cancel_bulk_job' ), self::DISCOVER_NONCE ) ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Stop the background search? Whatever it already added stays — only the rest of the queue is cancelled.', 'ka-listing-bulk-importer' ) ); ?>');"><?php esc_html_e( 'Cancel', 'ka-listing-bulk-importer' ); ?></a>
 			</p>
@@ -1528,6 +1544,7 @@ class KA_Listing_Bulk_Importer {
 				type: 'discover',
 				ajaxUrl: <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>,
 				nonce: <?php echo wp_json_encode( wp_create_nonce( self::DISCOVER_NONCE ) ); ?>,
+				intervalMs: <?php echo ( 'google' !== $job['provider'] ) ? (int) self::JOB_POLL_MS_AI : 15000; ?>,
 				render: function( job ) {
 					var pct = job.total > 0 ? Math.round( ( job.done / job.total ) * 100 ) : 0;
 					document.getElementById( 'ka_lbi_job_done' ).textContent = job.done;
@@ -1536,6 +1553,20 @@ class KA_Listing_Bulk_Importer {
 					document.getElementById( 'ka_lbi_job_created' ).textContent = job.created;
 					document.getElementById( 'ka_lbi_job_skipped' ).textContent = job.skipped;
 					document.getElementById( 'ka_lbi_job_bar' ).style.width = pct + '%';
+					var emptyEl = document.getElementById( 'ka_lbi_job_empty' );
+					if ( emptyEl ) { emptyEl.textContent = job.empty_combos || 0; }
+					var errEl = document.getElementById( 'ka_lbi_job_errcount' );
+					if ( errEl ) { errEl.textContent = job.provider_errors || 0; }
+					var detailEl = document.getElementById( 'ka_lbi_job_detail' );
+					if ( detailEl && job.last_provider_error ) {
+						var lastErrEl = document.getElementById( 'ka_lbi_job_lasterr' );
+						if ( lastErrEl ) {
+							lastErrEl.textContent = job.last_provider_error;
+						} else {
+							detailEl.innerHTML += '<br /><strong><?php echo esc_js( __( 'Last error:', 'ka-listing-bulk-importer' ) ); ?></strong> <span id="ka_lbi_job_lasterr"></span>';
+							document.getElementById( 'ka_lbi_job_lasterr' ).textContent = job.last_provider_error;
+						}
+					}
 				},
 				onDone: function() {
 					var hint = document.getElementById( 'ka_lbi_job_hint' );
@@ -2140,12 +2171,15 @@ class KA_Listing_Bulk_Importer {
 		}
 
 		$job = array(
-			'id'         => wp_generate_uuid4(),
-			'queue'      => $queue,
-			'total'      => count( $queue ),
-			'done'       => 0,
-			'created'    => 0,
-			'skipped'    => 0,
+			'id'                => wp_generate_uuid4(),
+			'queue'             => $queue,
+			'total'             => count( $queue ),
+			'done'              => 0,
+			'created'           => 0,
+			'skipped'           => 0,
+			'empty_combos'      => 0, // combos that came back with zero results but no error — e.g. the AI simply doesn't know of a real match, or Google Maps genuinely has none
+			'provider_errors'   => 0, // combos where the provider call itself failed (bad key, quota, network, parse failure)
+			'last_provider_error' => '',
 			'provider'   => $provider,
 			'max'        => $max,
 			'started_by' => get_current_user_id(),
@@ -2213,9 +2247,14 @@ class KA_Listing_Bulk_Importer {
 			return null;
 		}
 
+		$is_ai_job = ( 'google' !== $job['provider'] );
+		$batch_size = $is_ai_job ? self::JOB_BATCH_SIZE_AI : self::JOB_BATCH_SIZE;
+		$min_gap    = $is_ai_job ? self::JOB_MIN_GAP_AI : self::JOB_MIN_GAP;
+		$tick_delay = $is_ai_job ? self::JOB_TICK_DELAY_AI : self::JOB_TICK_DELAY;
+
 		if ( ! $force ) {
 			$last = isset( $job['updated_at'] ) ? (int) $job['updated_at'] : 0;
-			if ( $last && ( time() - $last ) < self::JOB_MIN_GAP ) {
+			if ( $last && ( time() - $last ) < $min_gap ) {
 				return $job; // too soon since the last tick — report current state without doing more work yet
 			}
 		}
@@ -2241,7 +2280,7 @@ class KA_Listing_Bulk_Importer {
 		// visibly (logged, shown on this page, emailed) instead of silently freezing forever at
 		// its current percentage the way an uncaught fatal here used to.
 		try {
-			$batch = array_splice( $job['queue'], 0, self::JOB_BATCH_SIZE );
+			$batch = array_splice( $job['queue'], 0, $batch_size );
 			foreach ( $batch as $pair ) {
 				$cat_term = get_term_by( 'slug', $pair['category'], self::TAX_CATEGORY );
 				if ( ! $cat_term ) {
@@ -2254,6 +2293,13 @@ class KA_Listing_Bulk_Importer {
 				$found    = ( 'google' === $job['provider'] )
 					? $this->discover_google( $key, $pair['location'], $cat_term, $safe_max )
 					: $this->discover_ai( $job['provider'], $key, $pair['location'], $cat_term, $safe_max );
+
+				if ( is_wp_error( $found ) ) {
+					$job['provider_errors']++;
+					$job['last_provider_error'] = $found->get_error_message();
+				} elseif ( empty( $found ) ) {
+					$job['empty_combos']++;
+				}
 
 				if ( ! is_wp_error( $found ) ) {
 					foreach ( $found as $i => $fields ) {
@@ -2301,7 +2347,7 @@ class KA_Listing_Bulk_Importer {
 		}
 
 		update_option( self::OPTION_JOB, $job, false );
-		wp_schedule_single_event( time() + self::JOB_TICK_DELAY, self::JOB_CRON_HOOK );
+		wp_schedule_single_event( time() + $tick_delay, self::JOB_CRON_HOOK );
 		delete_transient( self::JOB_LOCK_KEY );
 		return $job;
 	}
@@ -2331,6 +2377,51 @@ class KA_Listing_Bulk_Importer {
 			<p style="margin:.4em 0;">
 				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=ka_lbi_dismiss_job_error&which=' . rawurlencode( $which ) ), self::DISCOVER_NONCE ) ); ?>"><?php esc_html_e( 'Dismiss', 'ka-listing-bulk-importer' ); ?></a>
 			</p>
+		</div>
+		<?php
+	}
+
+	/** Shows what the last finished background run actually did, since the live card disappears once it's done and the summary email can't be relied on (no SMTP configured is common on shared/managed hosting). Explains a "0 added" result instead of leaving it a mystery. */
+	private function render_last_job_summary( $which ) {
+		$s = get_option( 'ka_lbi_last_job_summary_' . $which, null );
+		if ( ! is_array( $s ) || empty( $s['time'] ) ) {
+			return;
+		}
+		$provider_label = isset( self::PROVIDERS[ $s['provider'] ] ) ? self::PROVIDERS[ $s['provider'] ]['label'] : $s['provider'];
+		?>
+		<div class="notice notice-info inline" style="padding:8px 12px;">
+			<p style="margin:.4em 0;">
+				<strong><?php esc_html_e( 'Last background run:', 'ka-listing-bulk-importer' ); ?></strong>
+				<?php
+				printf(
+					/* translators: 1: source label, 2: combos processed, 3: listings added, 4: listings skipped */
+					esc_html__( '%1$s — processed %2$d combination(s), added %3$d new listing(s), skipped %4$d.', 'ka-listing-bulk-importer' ),
+					esc_html( $provider_label ),
+					(int) $s['done'],
+					(int) $s['created'],
+					(int) $s['skipped']
+				);
+				?>
+				<span style="color:#646970;">(<?php echo esc_html( $s['time'] ); ?>)</span>
+			</p>
+			<?php if ( (int) $s['created'] === 0 && (int) $s['done'] > 0 ) : ?>
+				<p style="margin:.4em 0;">
+					<?php
+					if ( ! empty( $s['provider_errors'] ) ) {
+						printf(
+							/* translators: %d: number of failed combinations */
+							esc_html__( 'Nothing was added because %d of the searches failed to even reach the source (bad key, quota, or a network problem) — see the error below.', 'ka-listing-bulk-importer' ),
+							(int) $s['provider_errors']
+						);
+					} else {
+						esc_html_e( 'Nothing was added because every search came back empty — the source had no confident match for any of these city/category combinations, rather than something breaking. Try a broader or more common category (e.g. restaurants) to confirm the search itself still works.', 'ka-listing-bulk-importer' );
+					}
+					?>
+				</p>
+			<?php endif; ?>
+			<?php if ( ! empty( $s['last_provider_error'] ) ) : ?>
+				<p style="margin:.4em 0;"><strong><?php esc_html_e( 'Last error message seen:', 'ka-listing-bulk-importer' ); ?></strong> <?php echo esc_html( $s['last_provider_error'] ); ?></p>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -2377,6 +2468,20 @@ class KA_Listing_Bulk_Importer {
 	private function finish_job( array $job ) {
 		delete_option( self::OPTION_JOB );
 
+		// Kept even though the job option itself is gone, so the Discover page can still explain
+		// what happened on the next visit — the live status card disappears once the job is done,
+		// and the summary email is unreliable on hosts with no SMTP configured (common here).
+		update_option( 'ka_lbi_last_job_summary_discover', array(
+			'time'             => current_time( 'mysql' ),
+			'done'             => (int) $job['done'],
+			'created'          => (int) $job['created'],
+			'skipped'          => (int) $job['skipped'],
+			'empty_combos'     => (int) ( $job['empty_combos'] ?? 0 ),
+			'provider_errors'  => (int) ( $job['provider_errors'] ?? 0 ),
+			'last_provider_error' => $job['last_provider_error'] ?? '',
+			'provider'         => $job['provider'] ?? '',
+		), false );
+
 		$to = get_option( 'admin_email' );
 		if ( ! $to ) {
 			return;
@@ -2397,6 +2502,18 @@ class KA_Listing_Bulk_Importer {
 			(int) $job['created'],
 			(int) $job['skipped']
 		) . "\n\n";
+		if ( ! empty( $job['empty_combos'] ) || ! empty( $job['provider_errors'] ) ) {
+			$body .= sprintf(
+				/* translators: 1: combos with zero results, 2: combos where the provider call itself failed */
+				__( 'Of those: %1$d search(es) came back with nothing (the source had no confident match), %2$d failed to even reach the source.', 'ka-listing-bulk-importer' ),
+				(int) ( $job['empty_combos'] ?? 0 ),
+				(int) ( $job['provider_errors'] ?? 0 )
+			) . "\n";
+			if ( ! empty( $job['last_provider_error'] ) ) {
+				$body .= sprintf( __( 'Last error message seen: %s', 'ka-listing-bulk-importer' ), $job['last_provider_error'] ) . "\n";
+			}
+			$body .= "\n";
+		}
 		$body .= __( 'Review and publish the new ones here:', 'ka-listing-bulk-importer' ) . "\n";
 		$body .= admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&post_status=pending' ) . "\n";
 
