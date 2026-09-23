@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 3.5.0
+ * Version: 3.5.1
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '3.4.1'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '3.5.0'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -3159,14 +3159,21 @@ class KA_Listing_Bulk_Importer {
 			$this->die_back( __( 'Your uploaded file has expired. Please upload it again.', 'ka-listing-bulk-importer' ) );
 		}
 
+		// NOTE: deliberately NOT run through sanitize_key() — that lowercases everything, and the one
+		// mixed-case field key here ("gAddress") would silently become "gaddress" and fail the
+		// whitelist check below, dropping the Address column from every CSV import without any
+		// visible error. Values are still fully safe: every one is checked against the fixed
+		// $valid_keys whitelist immediately after, so nothing outside that known set can pass through.
 		$map = isset( $_POST['ka_lbi_map'] ) ? (array) wp_unslash( $_POST['ka_lbi_map'] ) : array();
-		$map = array_map( 'sanitize_key', $map );
 
 		$valid_keys = array_keys( $this->importable_fields() );
 		foreach ( $map as $col => $key ) {
-			if ( '' !== $key && ! in_array( $key, $valid_keys, true ) ) {
+			$key = is_string( $key ) ? trim( $key ) : '';
+			if ( '' === $key || ! in_array( $key, $valid_keys, true ) ) {
 				unset( $map[ $col ] );
+				continue;
 			}
+			$map[ $col ] = $key;
 		}
 
 		$records = array();
