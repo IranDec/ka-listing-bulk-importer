@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 3.3.0
+ * Version: 3.4.1
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '3.2.1'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '3.4.0'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -1905,98 +1905,114 @@ class KA_Listing_Bulk_Importer {
 			@set_time_limit( min( 300, 60 + ( 30 * $combo_count ) ) );
 		}
 
-		$found = array();
-		$this->last_search_error = '';
-		foreach ( $location_list as $loc ) {
-			$found = array_merge( $found, $this->search_categories_for_location( $provider, $key, $loc, $search_categories, $max ) );
-		}
-
-		if ( empty( $found ) ) {
-			$this->die_back( $this->last_search_error
-				? $this->last_search_error
-				: __( 'No results found. Try a different place, category or source.', 'ka-listing-bulk-importer' )
-			);
-		}
-
-		$records = array();
-		$row_i   = 0;
-		$skipped_existing = 0;
-		foreach ( $found as $fields ) {
-			$record = $this->make_record( $row_i, $fields );
-			if ( 'new_only' === $mode && ! empty( $record['duplicates'] ) ) {
-				$skipped_existing++;
-				continue; // Leave it out entirely — the user only wants genuinely new businesses.
+		// Wrapped defensively: this runs live provider calls and JSON parsing that were never
+		// exercised in production until real API keys were saved, so an uncaught PHP error here
+		// used to take down the whole admin-post.php request as a white-screen "critical error"
+		// instead of showing a normal, readable message. Same pattern as the background job ticks.
+		try {
+			$found = array();
+			$this->last_search_error = '';
+			foreach ( $location_list as $loc ) {
+				$found = array_merge( $found, $this->search_categories_for_location( $provider, $key, $loc, $search_categories, $max ) );
 			}
-			$records[] = $record;
-			$row_i++;
-		}
 
-		if ( empty( $records ) ) {
-			$this->die_back( __( 'Every result matched something already on your site, and "Only find new ones" is on — nothing new to review.', 'ka-listing-bulk-importer' ) );
-		}
+			if ( empty( $found ) ) {
+				$this->die_back( $this->last_search_error
+					? $this->last_search_error
+					: __( 'No results found. Try a different place, category or source.', 'ka-listing-bulk-importer' )
+				);
+			}
 
-		set_transient( $this->tkey( 'records' ), $records, self::TRANSIENT_TTL );
-		set_transient( $this->tkey( 'status' ), $status, self::TRANSIENT_TTL );
-		set_transient( $this->tkey( 'mode' ), $mode, self::TRANSIENT_TTL );
+			$records = array();
+			$row_i   = 0;
+			$skipped_existing = 0;
+			foreach ( $found as $fields ) {
+				$record = $this->make_record( $row_i, $fields );
+				if ( 'new_only' === $mode && ! empty( $record['duplicates'] ) ) {
+					$skipped_existing++;
+					continue; // Leave it out entirely — the user only wants genuinely new businesses.
+				}
+				$records[] = $record;
+				$row_i++;
+			}
 
-		$is_ai           = self::PROVIDERS[ $provider ]['is_ai'];
-		if ( $all_categories ) {
-			$category_label = __( 'all categories', 'ka-listing-bulk-importer' );
-		} elseif ( count( $search_categories ) > 1 ) {
-			$category_label = sprintf(
-				/* translators: %d: number of categories selected */
-				__( '%d selected categories', 'ka-listing-bulk-importer' ),
-				count( $search_categories )
+			if ( empty( $records ) ) {
+				$this->die_back( __( 'Every result matched something already on your site, and "Only find new ones" is on — nothing new to review.', 'ka-listing-bulk-importer' ) );
+			}
+
+			set_transient( $this->tkey( 'records' ), $records, self::TRANSIENT_TTL );
+			set_transient( $this->tkey( 'status' ), $status, self::TRANSIENT_TTL );
+			set_transient( $this->tkey( 'mode' ), $mode, self::TRANSIENT_TTL );
+
+			$is_ai           = self::PROVIDERS[ $provider ]['is_ai'];
+			if ( $all_categories ) {
+				$category_label = __( 'all categories', 'ka-listing-bulk-importer' );
+			} elseif ( count( $search_categories ) > 1 ) {
+				$category_label = sprintf(
+					/* translators: %d: number of categories selected */
+					__( '%d selected categories', 'ka-listing-bulk-importer' ),
+					count( $search_categories )
+				);
+			} else {
+				$category_label = $category->name;
+			}
+			$location_label  = ( count( $location_list ) > 1 )
+				? sprintf(
+					/* translators: 1: first city, 2: number of additional cities */
+					__( '%1$s + %2$d more cities', 'ka-listing-bulk-importer' ),
+					$location_list[0],
+					count( $location_list ) - 1
+				)
+				: $location_list[0];
+			$note_text = $is_ai
+				? sprintf(
+					/* translators: 1: provider label, 2: result count, 3: location, 4: category */
+					__( '%1$d results suggested by %2$s for "%3$s" (%4$s). These come from the model\'s own knowledge, not a live search — verify address and phone before publishing.', 'ka-listing-bulk-importer' ),
+					count( $records ),
+					self::PROVIDERS[ $provider ]['label'],
+					$location_label,
+					$category_label
+				)
+				: sprintf(
+					/* translators: 1: result count, 2: location, 3: category */
+					__( '%1$d results found on Google Maps for "%2$s" (%3$s).', 'ka-listing-bulk-importer' ),
+					count( $records ),
+					$location_label,
+					$category_label
+				);
+			if ( $skipped_existing > 0 ) {
+				$note_text .= ' ' . sprintf(
+					/* translators: %d: number of results left out */
+					__( '%d more were left out because they matched something already on your site.', 'ka-listing-bulk-importer' ),
+					$skipped_existing
+				);
+			}
+			set_transient( $this->tkey( 'source_note' ), array(
+				'warn' => $is_ai,
+				'text' => $note_text,
+			), self::TRANSIENT_TTL );
+
+			// Track a rough running spend estimate against this provider's own admin-entered per-result cost.
+			$active_model = $is_ai ? get_option( self::OPTION_MODEL_PREFIX . $provider, self::PROVIDERS[ $provider ]['default_model'] ) : '';
+			$cost_each    = (float) get_option( $this->cost_option_key( $provider, $active_model ), 0 );
+			if ( $cost_each > 0 ) {
+				$spend_option = self::OPTION_SPEND_PREFIX . $provider;
+				$spend        = (float) get_option( $spend_option, 0 );
+				update_option( $spend_option, $spend + ( $cost_each * count( $found ) ), false );
+			}
+
+			$this->log_discover_search( $location_label, $category_label, $provider, $mode, count( $found ), count( $records ) );
+		} catch ( \Throwable $e ) {
+			$this->log_job_error( 'interactive', $e->getMessage() . ' (' . $e->getFile() . ':' . $e->getLine() . ')' );
+			$this->die_back(
+				sprintf(
+					/* translators: %s: the technical error message, kept on-screen instead of a white-screen crash */
+					__( 'Something went wrong while searching: %s. This has been logged; try a smaller "How many results" or a different source.', 'ka-listing-bulk-importer' ),
+					$e->getMessage()
+				)
 			);
-		} else {
-			$category_label = $category->name;
+			return;
 		}
-		$location_label  = ( count( $location_list ) > 1 )
-			? sprintf(
-				/* translators: 1: first city, 2: number of additional cities */
-				__( '%1$s + %2$d more cities', 'ka-listing-bulk-importer' ),
-				$location_list[0],
-				count( $location_list ) - 1
-			)
-			: $location_list[0];
-		$note_text = $is_ai
-			? sprintf(
-				/* translators: 1: provider label, 2: result count, 3: location, 4: category */
-				__( '%1$d results suggested by %2$s for "%3$s" (%4$s). These come from the model\'s own knowledge, not a live search — verify address and phone before publishing.', 'ka-listing-bulk-importer' ),
-				count( $records ),
-				self::PROVIDERS[ $provider ]['label'],
-				$location_label,
-				$category_label
-			)
-			: sprintf(
-				/* translators: 1: result count, 2: location, 3: category */
-				__( '%1$d results found on Google Maps for "%2$s" (%3$s).', 'ka-listing-bulk-importer' ),
-				count( $records ),
-				$location_label,
-				$category_label
-			);
-		if ( $skipped_existing > 0 ) {
-			$note_text .= ' ' . sprintf(
-				/* translators: %d: number of results left out */
-				__( '%d more were left out because they matched something already on your site.', 'ka-listing-bulk-importer' ),
-				$skipped_existing
-			);
-		}
-		set_transient( $this->tkey( 'source_note' ), array(
-			'warn' => $is_ai,
-			'text' => $note_text,
-		), self::TRANSIENT_TTL );
-
-		// Track a rough running spend estimate against this provider's own admin-entered per-result cost.
-		$active_model = $is_ai ? get_option( self::OPTION_MODEL_PREFIX . $provider, self::PROVIDERS[ $provider ]['default_model'] ) : '';
-		$cost_each    = (float) get_option( $this->cost_option_key( $provider, $active_model ), 0 );
-		if ( $cost_each > 0 ) {
-			$spend_option = self::OPTION_SPEND_PREFIX . $provider;
-			$spend        = (float) get_option( $spend_option, 0 );
-			update_option( $spend_option, $spend + ( $cost_each * count( $found ) ), false );
-		}
-
-		$this->log_discover_search( $location_label, $category_label, $provider, $mode, count( $found ), count( $records ) );
 
 		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-import&step=preview' ) );
 		exit;
@@ -2546,7 +2562,8 @@ class KA_Listing_Bulk_Importer {
 			'{"name": "...", "address": "...", "phone": "...", "website": "...", "description": "one short sentence"}',
 			$max,
 			$category->name,
-			$location
+			$location,
+			$max
 		);
 
 		switch ( $provider ) {
