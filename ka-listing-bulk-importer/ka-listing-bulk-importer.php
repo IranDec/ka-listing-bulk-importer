@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 3.5.1
+ * Version: 3.5.2
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '3.5.0'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '3.5.1'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -146,6 +146,7 @@ class KA_Listing_Bulk_Importer {
 		add_action( self::PHOTO_JOB_CRON_HOOK, array( $this, 'process_photo_job_batch' ) );
 		add_action( 'wp_ajax_ka_lbi_poll_job', array( $this, 'handle_job_poll' ) );
 		add_action( 'admin_post_ka_lbi_dismiss_job_error', array( $this, 'handle_dismiss_job_error' ) );
+		add_action( 'admin_post_ka_lbi_backfill_plan_meta', array( $this, 'handle_backfill_plan_meta' ) );
 
 		$this->maybe_migrate_legacy_key();
 	}
@@ -372,6 +373,10 @@ class KA_Listing_Bulk_Importer {
 
 		echo '<div class="wrap ka-lbi-wrap"><h1><span class="dashicons dashicons-upload"></span>' . esc_html__( 'Bulk Import Listings', 'ka-listing-bulk-importer' ) . '</h1>';
 		$this->render_nav_tabs( 'ka-lbi-import' );
+
+		if ( 'upload' === $step ) {
+			$this->render_plan_meta_backfill_notice();
+		}
 
 		echo '<div class="ka-lbi-card">';
 		switch ( $step ) {
@@ -2891,6 +2896,38 @@ class KA_Listing_Bulk_Importer {
 	/* Step 1: Upload                                                      */
 	/* ------------------------------------------------------------------ */
 
+	/**
+	 * Shown once on the Bulk Import landing screen: a one-click fix for the
+	 * ListingPro theme fatal described in ensure_plan_meta_placeholder(). New
+	 * imports are already immune to it; this covers listings created before
+	 * the fix, or by any route other than this plugin.
+	 */
+	private function render_plan_meta_backfill_notice() {
+		if ( isset( $_GET['ka_lbi_backfill_fixed'] ) ) {
+			$fixed = absint( $_GET['ka_lbi_backfill_fixed'] );
+			$total = absint( $_GET['ka_lbi_backfill_total'] ?? 0 );
+			echo '<div class="notice notice-success inline" style="padding:10px 12px;margin-bottom:12px;"><p style="margin:.4em 0;">';
+			printf(
+				/* translators: 1: number of listings fixed just now, 2: total listings checked */
+				esc_html__( 'Done — %1$d of %2$d listings were missing the field that was crashing their page, and now have it. Listings that already had it were left untouched.', 'ka-listing-bulk-importer' ),
+				$fixed,
+				$total
+			);
+			echo '</p></div>';
+			return;
+		}
+
+		$backfill_url = wp_nonce_url(
+			admin_url( 'admin-post.php?action=ka_lbi_backfill_plan_meta' ),
+			self::NONCE_ACTION
+		);
+		echo '<div class="notice notice-warning inline" style="padding:10px 12px;margin-bottom:12px;">';
+		echo '<p style="margin:.4em 0;"><strong>' . esc_html__( 'Site fix available', 'ka-listing-bulk-importer' ) . '</strong></p>';
+		echo '<p style="margin:.4em 0;">' . esc_html__( 'The site theme crashes a listing\'s own page when a field it expects ("lp_listingpro_options") was never set — true for every listing not created through the theme\'s own paid-submission form, including everything imported here. New imports from this plugin already avoid it. Click below to fix every existing listing in one pass (safe to run more than once; it never touches a listing that already has real plan data).', 'ka-listing-bulk-importer' ) . '</p>';
+		echo '<p style="margin:.4em 0;"><a href="' . esc_url( $backfill_url ) . '" class="button button-primary">' . esc_html__( 'Fix all existing listings now', 'ka-listing-bulk-importer' ) . '</a></p>';
+		echo '</div>';
+	}
+
 	private function render_upload_step() {
 		$template_url = wp_nonce_url(
 			admin_url( 'admin-post.php?action=ka_lbi_template' ),
@@ -3518,6 +3555,75 @@ class KA_Listing_Bulk_Importer {
 	}
 
 	/**
+	 * The ListingPro theme's own "list-confirmation" template does
+	 * `get_post_meta( $id, 'lp_listingpro_options', true )` and then indexes
+	 * straight into the result as an array (`$postmeta['Plan_id']`), with no
+	 * isset()/is_array() guard. Any listing that never went through the theme's
+	 * paid-submission flow — every listing this plugin creates, and apparently
+	 * any listing added directly from wp-admin too — simply has no value for
+	 * that meta key, so get_post_meta() returns '' (an empty string, WordPress's
+	 * normal "not set" value). On PHP 8, indexing a string with a non-numeric
+	 * key throws a TypeError instead of the old silent PHP 7 warning, which
+	 * fatals the entire single-listing page for every "Pending" listing on the
+	 * site (there is no theme-side null-check to fall back on).
+	 *
+	 * Rather than patch the theme file directly — a live edit with no staging
+	 * step, and one that a future theme update would silently overwrite,
+	 * bringing the crash straight back — we neutralize it from our own side:
+	 * whenever that meta key is completely unset, we seed it with an empty
+	 * array. An array with a missing key just produces an ordinary "undefined
+	 * array key" notice when the theme reads it, exactly like the old PHP 7
+	 * behavior, instead of a fatal. We never touch the value if it already
+	 * exists (so a listing that *did* go through a real paid submission keeps
+	 * its real plan data untouched).
+	 */
+	private function ensure_plan_meta_placeholder( $post_id ) {
+		$existing = get_post_meta( $post_id, 'lp_listingpro_options', true );
+		if ( '' === $existing ) {
+			update_post_meta( $post_id, 'lp_listingpro_options', array() );
+		}
+	}
+
+	/**
+	 * One-time admin action: apply ensure_plan_meta_placeholder() to every
+	 * existing listing on the site, so listings imported before this fix
+	 * (or added any other way that skipped the theme's paid flow) stop
+	 * crashing their own frontend page right now, without waiting for a
+	 * re-import.
+	 */
+	public function handle_backfill_plan_meta() {
+		$this->verify_capability();
+		check_admin_referer( self::NONCE_ACTION );
+
+		$ids = get_posts( array(
+			'post_type'      => self::POST_TYPE,
+			'post_status'    => array( 'publish', 'pending', 'draft', 'private', 'future' ),
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+		) );
+
+		$fixed = 0;
+		foreach ( $ids as $id ) {
+			$existing = get_post_meta( $id, 'lp_listingpro_options', true );
+			if ( '' === $existing ) {
+				update_post_meta( $id, 'lp_listingpro_options', array() );
+				$fixed++;
+			}
+		}
+
+		wp_safe_redirect( add_query_arg(
+			array(
+				'page'                    => 'ka-lbi-import',
+				'ka_lbi_backfill_total'   => count( $ids ),
+				'ka_lbi_backfill_fixed'   => $fixed,
+			),
+			admin_url( 'edit.php?post_type=' . self::POST_TYPE )
+		) );
+		exit;
+	}
+
+	/**
 	 * Create or update a single listing from a mapped, associative record.
 	 * Every value is sanitized according to its declared field type before it
 	 * ever reaches wp_insert_post / update_post_meta.
@@ -3549,6 +3655,11 @@ class KA_Listing_Bulk_Importer {
 		if ( is_wp_error( $post_id ) ) {
 			return array( 'post_id' => $post_id, 'photo_errors' => array() );
 		}
+
+		// See ensure_plan_meta_placeholder() docblock: without this, the theme's
+		// own single-listing template fatals for any listing that didn't come
+		// through its paid-submission flow.
+		$this->ensure_plan_meta_placeholder( $post_id );
 
 		if ( ! empty( $fields['category'] ) ) {
 			$this->set_terms_by_name( $post_id, self::TAX_CATEGORY, $fields['category'] );
