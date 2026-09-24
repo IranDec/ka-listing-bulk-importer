@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 3.5.2
+ * Version: 3.6.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '3.5.1'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '3.5.2'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -2897,20 +2897,24 @@ class KA_Listing_Bulk_Importer {
 	/* ------------------------------------------------------------------ */
 
 	/**
-	 * Shown once on the Bulk Import landing screen: a one-click fix for the
-	 * ListingPro theme fatal described in ensure_plan_meta_placeholder(). New
-	 * imports are already immune to it; this covers listings created before
-	 * the fix, or by any route other than this plugin.
+	 * Shown once on the Bulk Import landing screen: a one-click fix for (1)
+	 * the ListingPro theme fatal described in ensure_plan_meta_placeholder(),
+	 * and (2) the blank Google Address / Phone / Website / etc. fields on the
+	 * admin edit screen described in sync_classic_options_meta(). New imports
+	 * are already immune to both; this covers listings created before these
+	 * fixes existed, or by any route other than this plugin.
 	 */
 	private function render_plan_meta_backfill_notice() {
 		if ( isset( $_GET['ka_lbi_backfill_fixed'] ) ) {
-			$fixed = absint( $_GET['ka_lbi_backfill_fixed'] );
-			$total = absint( $_GET['ka_lbi_backfill_total'] ?? 0 );
+			$fixed  = absint( $_GET['ka_lbi_backfill_fixed'] );
+			$synced = absint( $_GET['ka_lbi_backfill_synced'] ?? 0 );
+			$total  = absint( $_GET['ka_lbi_backfill_total'] ?? 0 );
 			echo '<div class="notice notice-success inline" style="padding:10px 12px;margin-bottom:12px;"><p style="margin:.4em 0;">';
 			printf(
-				/* translators: 1: number of listings fixed just now, 2: total listings checked */
-				esc_html__( 'Done — %1$d of %2$d listings were missing the field that was crashing their page, and now have it. Listings that already had it were left untouched.', 'ka-listing-bulk-importer' ),
+				/* translators: 1: number of listings fixed for the crash, 2: number of listings whose edit-screen fields were synced, 3: total listings checked */
+				esc_html__( 'Done — checked %3$d listings. %1$d were missing the field that was crashing their page (now fixed), and %2$d had their Address/Phone/Website/etc. re-synced so the edit screen shows them correctly. Listings that already had everything were left untouched.', 'ka-listing-bulk-importer' ),
 				$fixed,
+				$synced,
 				$total
 			);
 			echo '</p></div>';
@@ -2923,7 +2927,7 @@ class KA_Listing_Bulk_Importer {
 		);
 		echo '<div class="notice notice-warning inline" style="padding:10px 12px;margin-bottom:12px;">';
 		echo '<p style="margin:.4em 0;"><strong>' . esc_html__( 'Site fix available', 'ka-listing-bulk-importer' ) . '</strong></p>';
-		echo '<p style="margin:.4em 0;">' . esc_html__( 'The site theme crashes a listing\'s own page when a field it expects ("lp_listingpro_options") was never set — true for every listing not created through the theme\'s own paid-submission form, including everything imported here. New imports from this plugin already avoid it. Click below to fix every existing listing in one pass (safe to run more than once; it never touches a listing that already has real plan data).', 'ka-listing-bulk-importer' ) . '</p>';
+		echo '<p style="margin:.4em 0;">' . esc_html__( 'Two known issues affect listings not created through the theme\'s own paid-submission form (that includes everything imported here): the site theme can crash a listing\'s own page, and the admin edit screen\'s "listing settings" panel (Google Address, Phone, Website, etc.) can show blank fields even though the real data is saved correctly. New imports from this plugin already avoid both. Click below to fix every existing listing in one pass (safe to run more than once; it never overwrites real data with something else).', 'ka-listing-bulk-importer' ) . '</p>';
 		echo '<p style="margin:.4em 0;"><a href="' . esc_url( $backfill_url ) . '" class="button button-primary">' . esc_html__( 'Fix all existing listings now', 'ka-listing-bulk-importer' ) . '</a></p>';
 		echo '</div>';
 	}
@@ -3585,11 +3589,64 @@ class KA_Listing_Bulk_Importer {
 	}
 
 	/**
-	 * One-time admin action: apply ensure_plan_meta_placeholder() to every
-	 * existing listing on the site, so listings imported before this fix
-	 * (or added any other way that skipped the theme's paid flow) stop
-	 * crashing their own frontend page right now, without waiting for a
-	 * re-import.
+	 * The ListingPro Plugin's own admin edit-screen meta box — the "listing
+	 * settings" panel with Google Address, Latitude, Longitude, Phone,
+	 * Whatsapp, Email, Website, socials, Business Tagline, etc. (registered in
+	 * inc/metaboxes/post-type.php) — does NOT read those fields the normal
+	 * way, via get_post_meta( $id, 'gAddress', true ). Instead its render
+	 * function does:
+	 *
+	 *   $options = get_post_meta( $post->ID, 'lp_listingpro_options', true );
+	 *   $settings['value'] = isset( $options[ $settings['id'] ] ) ? $options[ $settings['id'] ] : '';
+	 *
+	 * i.e. every one of those fields' current value has to live inside ONE
+	 * combined array stored under the single meta key 'lp_listingpro_options'
+	 * — the very same key ensure_plan_meta_placeholder() above already seeds
+	 * with an empty array to stop the PHP 8 fatal. Our own imports write
+	 * gAddress/phone/website/etc. as their own separate post meta keys (see
+	 * the META_FIELDS loop in write_row()), which is correct and is what
+	 * every front-end template and the map info-window actually read — that
+	 * data was always saved correctly and never at risk. But because it was
+	 * never also mirrored into this one combined array, the admin edit
+	 * screen's own fields for it render empty, even though the real value is
+	 * sitting right there in the database. This copies the current value of
+	 * every META_FIELDS key that already has one into that combined array, so
+	 * the edit screen shows the same data everything else already has. It
+	 * never removes a key that is already correctly set to the same value
+	 * (so this is safe to run repeatedly, including as part of the backfill
+	 * below).
+	 */
+	private function sync_classic_options_meta( $post_id ) {
+		$options = get_post_meta( $post_id, 'lp_listingpro_options', true );
+		if ( ! is_array( $options ) ) {
+			$options = array();
+		}
+
+		$changed = false;
+		foreach ( self::META_FIELDS as $key => $def ) {
+			$value = get_post_meta( $post_id, $key, true );
+			if ( '' === $value || null === $value || false === $value ) {
+				continue;
+			}
+			if ( ! array_key_exists( $key, $options ) || $options[ $key ] !== $value ) {
+				$options[ $key ] = $value;
+				$changed = true;
+			}
+		}
+
+		if ( $changed ) {
+			update_post_meta( $post_id, 'lp_listingpro_options', $options );
+		}
+
+		return $changed;
+	}
+
+	/**
+	 * One-time admin action: apply ensure_plan_meta_placeholder() (the
+	 * frontend-fatal fix) and sync_classic_options_meta() (the blank
+	 * edit-screen-fields fix) to every existing listing on the site, so
+	 * listings imported before these fixes existed — or added any other way
+	 * — are corrected right now, without waiting for a re-import.
 	 */
 	public function handle_backfill_plan_meta() {
 		$this->verify_capability();
@@ -3603,12 +3660,16 @@ class KA_Listing_Bulk_Importer {
 			'no_found_rows'  => true,
 		) );
 
-		$fixed = 0;
+		$fixed  = 0;
+		$synced = 0;
 		foreach ( $ids as $id ) {
 			$existing = get_post_meta( $id, 'lp_listingpro_options', true );
 			if ( '' === $existing ) {
 				update_post_meta( $id, 'lp_listingpro_options', array() );
 				$fixed++;
+			}
+			if ( $this->sync_classic_options_meta( $id ) ) {
+				$synced++;
 			}
 		}
 
@@ -3617,6 +3678,7 @@ class KA_Listing_Bulk_Importer {
 				'page'                    => 'ka-lbi-import',
 				'ka_lbi_backfill_total'   => count( $ids ),
 				'ka_lbi_backfill_fixed'   => $fixed,
+				'ka_lbi_backfill_synced'  => $synced,
 			),
 			admin_url( 'edit.php?post_type=' . self::POST_TYPE )
 		) );
@@ -3680,6 +3742,12 @@ class KA_Listing_Bulk_Importer {
 				update_post_meta( $post_id, $key, $value );
 			}
 		}
+
+		// See sync_classic_options_meta() docblock: without this, the address/
+		// phone/website/etc. fields we just saved above are invisible on the
+		// admin edit screen's own "listing settings" panel, even though they
+		// are correctly saved and used everywhere else on the site.
+		$this->sync_classic_options_meta( $post_id );
 
 		$photo_errors = array();
 
