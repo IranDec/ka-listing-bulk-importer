@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 3.7.0
+ * Version: 3.8.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -1649,15 +1649,15 @@ class KA_Listing_Bulk_Importer {
 		echo '<div class="wrap ka-lbi-wrap"><h1><span class="dashicons dashicons-format-image"></span>' . esc_html__( 'Backfill missing photos', 'ka-listing-bulk-importer' ) . '</h1>';
 		$this->render_nav_tabs( 'ka-lbi-photos' );
 		?>
-		<p class="ka-lbi-intro"><?php esc_html_e( 'For listings that already exist on your site but have no featured photo (e.g. anything imported from a CSV without a Photo column) — looks each one up on Google Maps by name and city, and attaches its real photo when Google has one.', 'ka-listing-bulk-importer' ); ?></p>
+		<p class="ka-lbi-intro"><?php esc_html_e( 'For listings that already exist on your site but have no featured photo (e.g. anything imported from a CSV without a Photo column) — finds a real photo for each one and attaches it. Two sources: Google Maps (needs a paid API key) or the listing\'s own business website (completely free, no key needed).', 'ka-listing-bulk-importer' ); ?></p>
 
 		<?php if ( '' === $google_key ) : ?>
-			<div class="notice notice-warning inline" style="padding:8px 12px;">
+			<div class="notice notice-info inline" style="padding:8px 12px;">
 				<p style="margin:.4em 0;">
 					<?php
 					printf(
 						/* translators: %s: link to settings page */
-						wp_kses_post( __( 'This needs a working Google Maps (Places API) key — add and save one on the <a href="%s">Settings</a> tab first.', 'ka-listing-bulk-importer' ) ),
+						wp_kses_post( __( 'No Google Maps (Places API) key saved — that source is unavailable, but "Business website" below needs no key at all and works right now. (You can still add a Google key later on the <a href="%s">Settings</a> tab.)', 'ka-listing-bulk-importer' ) ),
 						esc_url( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-settings' ) )
 					);
 					?>
@@ -1688,6 +1688,22 @@ class KA_Listing_Bulk_Importer {
 				<input type="hidden" name="action" value="ka_lbi_backfill_photos" />
 				<table class="form-table">
 					<tr>
+						<th><?php esc_html_e( 'Data source', 'ka-listing-bulk-importer' ); ?></th>
+						<td>
+							<fieldset>
+								<label style="display:block;margin-bottom:6px;">
+									<input type="radio" name="ka_lbi_bf_source" value="website" checked="checked" />
+									<?php esc_html_e( 'Business website (free, no key needed — fetches the photo the listing\'s own website already shows when it\'s shared on social media)', 'ka-listing-bulk-importer' ); ?>
+								</label>
+								<label style="display:block;">
+									<input type="radio" name="ka_lbi_bf_source" value="google" <?php disabled( '' === $google_key ); ?> />
+									<?php esc_html_e( 'Google Maps (Places API) — needs a paid API key saved on Settings', 'ka-listing-bulk-importer' ); ?>
+								</label>
+								<p class="description" style="margin-top:6px;"><?php esc_html_e( 'Only works for listings that already have a Website saved. Listings with no website, or whose website has no shareable photo, are left as "no match" — try the other source for those.', 'ka-listing-bulk-importer' ); ?></p>
+							</fieldset>
+						</td>
+					</tr>
+					<tr>
 						<th><label for="ka_lbi_bf_location"><?php esc_html_e( 'City', 'ka-listing-bulk-importer' ); ?></label></th>
 						<td>
 							<select name="ka_lbi_bf_location" id="ka_lbi_bf_location">
@@ -1710,7 +1726,7 @@ class KA_Listing_Bulk_Importer {
 						</td>
 					</tr>
 				</table>
-				<?php submit_button( __( 'Find and attach photos', 'ka-listing-bulk-importer' ), 'primary', 'submit', false, ( '' === $google_key ) ? array( 'disabled' => 'disabled' ) : array() ); ?>
+				<?php submit_button( __( 'Find and attach photos', 'ka-listing-bulk-importer' ), 'primary', 'submit', false ); ?>
 				<p class="description" style="margin-top:8px;">
 					<?php
 					printf(
@@ -1804,6 +1820,7 @@ class KA_Listing_Bulk_Importer {
 				<thead><tr>
 					<th><?php esc_html_e( 'When', 'ka-listing-bulk-importer' ); ?></th>
 					<th><?php esc_html_e( 'City / Category', 'ka-listing-bulk-importer' ); ?></th>
+					<th><?php esc_html_e( 'Source', 'ka-listing-bulk-importer' ); ?></th>
 					<th><?php esc_html_e( 'How', 'ka-listing-bulk-importer' ); ?></th>
 					<th><?php esc_html_e( 'Result', 'ka-listing-bulk-importer' ); ?></th>
 				</tr></thead>
@@ -1812,6 +1829,7 @@ class KA_Listing_Bulk_Importer {
 					<tr>
 						<td><?php echo esc_html( human_time_diff( strtotime( $entry['time'] ), current_time( 'timestamp' ) ) . ' ' . __( 'ago', 'ka-listing-bulk-importer' ) ); ?></td>
 						<td><?php echo esc_html( $entry['location'] . ' / ' . $entry['category'] ); ?></td>
+						<td><?php echo esc_html( ( isset( $entry['source'] ) && 'website' === $entry['source'] ) ? __( 'Business website', 'ka-listing-bulk-importer' ) : __( 'Google Maps', 'ka-listing-bulk-importer' ) ); ?></td>
 						<td><?php echo esc_html( 'background' === $entry['mode'] ? __( 'Background job', 'ka-listing-bulk-importer' ) : __( 'Immediate', 'ka-listing-bulk-importer' ) ); ?></td>
 						<td>
 							<?php if ( ! empty( $entry['error'] ) ) : ?>
@@ -4323,22 +4341,34 @@ class KA_Listing_Bulk_Importer {
 
 		$loc_slug = isset( $_POST['ka_lbi_bf_location'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_bf_location'] ) ) : '';
 		$cat_slug = isset( $_POST['ka_lbi_bf_category'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_bf_category'] ) ) : '';
-
-		$key = get_option( self::OPTION_KEY_PREFIX . 'google', '' );
-		if ( '' === $key ) {
-			$this->die_back( __( 'No Google Maps (Places API) key saved yet. Add one on the Settings tab first.', 'ka-listing-bulk-importer' ) );
+		$source   = isset( $_POST['ka_lbi_bf_source'] ) ? sanitize_key( wp_unslash( $_POST['ka_lbi_bf_source'] ) ) : 'website';
+		if ( ! in_array( $source, array( 'google', 'website' ), true ) ) {
+			$source = 'website';
 		}
 
-		$tax_query = $this->photo_backfill_tax_query( $loc_slug, $cat_slug );
-		$base_args = array(
-			'post_type'      => self::POST_TYPE,
-			'post_status'    => array( 'publish', 'pending', 'draft', 'private' ),
-			'no_found_rows'  => false,
-			'meta_query'     => array(
+		$key = get_option( self::OPTION_KEY_PREFIX . 'google', '' );
+		if ( 'google' === $source && '' === $key ) {
+			$this->die_back( __( 'No Google Maps (Places API) key saved yet. Add one on the Settings tab first, or choose "Business website" as the source instead — that one needs no key at all.', 'ka-listing-bulk-importer' ) );
+		}
+
+		$tax_query   = $this->photo_backfill_tax_query( $loc_slug, $cat_slug );
+		$meta_query  = array(
+			'relation' => 'AND',
+			array(
 				'relation' => 'OR',
 				array( 'key' => '_thumbnail_id', 'compare' => 'NOT EXISTS' ),
 				array( 'key' => '_thumbnail_id', 'value' => '', 'compare' => '=' ),
 			),
+		);
+		if ( 'website' === $source ) {
+			// No point queueing listings that have no website saved — they can never get a match from this source.
+			$meta_query[] = array( 'key' => 'website', 'value' => '', 'compare' => '!=' );
+		}
+		$base_args = array(
+			'post_type'      => self::POST_TYPE,
+			'post_status'    => array( 'publish', 'pending', 'draft', 'private' ),
+			'no_found_rows'  => false,
+			'meta_query'     => $meta_query,
 		);
 		if ( ! empty( $tax_query ) ) {
 			$base_args['tax_query'] = $tax_query;
@@ -4349,7 +4379,10 @@ class KA_Listing_Bulk_Importer {
 		$total       = (int) $count_query->found_posts;
 
 		if ( 0 === $total ) {
-			$this->die_back( __( 'Nothing to do — every listing in this scope already has a photo (or there are no matching listings).', 'ka-listing-bulk-importer' ) );
+			$this->die_back( ( 'website' === $source )
+				? __( 'Nothing to do — every listing in this scope already has a photo, or none of the ones without a photo have a Website saved to check.', 'ka-listing-bulk-importer' )
+				: __( 'Nothing to do — every listing in this scope already has a photo (or there are no matching listings).', 'ka-listing-bulk-importer' )
+			);
 		}
 
 		$loc_term  = ( '' !== $loc_slug ) ? get_term_by( 'slug', $loc_slug, self::TAX_LOCATION ) : null;
@@ -4359,8 +4392,8 @@ class KA_Listing_Bulk_Importer {
 
 		if ( $total <= self::PHOTO_SYNC_CAP ) {
 			$ids = get_posts( array_merge( $base_args, array( 'posts_per_page' => $total, 'fields' => 'ids' ) ) );
-			$result = $this->run_photo_backfill_on_ids( $key, $ids );
-			$this->log_photo_run( $loc_label, $cat_label, 'sync', $result );
+			$result = $this->run_photo_backfill_on_ids( $source, $key, $ids );
+			$this->log_photo_run( $loc_label, $cat_label, 'sync', $result, '', $source );
 			set_transient( $this->tkey( 'backfill_result' ), $result, self::TRANSIENT_TTL );
 			wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE . '&page=ka-lbi-photos' ) );
 			exit;
@@ -4377,6 +4410,7 @@ class KA_Listing_Bulk_Importer {
 			'not_found'   => 0,
 			'location'    => $loc_label,
 			'category'    => $cat_label,
+			'source'      => $source,
 			'started_by'  => get_current_user_id(),
 			'started_at'  => current_time( 'mysql' ),
 			'updated_at'  => 0,
@@ -4393,8 +4427,88 @@ class KA_Listing_Bulk_Importer {
 		exit;
 	}
 
-	/** Runs the actual Google Maps lookup + photo sideload for a fixed list of post IDs. Shared by the synchronous path and each background-job tick. */
-	private function run_photo_backfill_on_ids( $key, array $post_ids ) {
+	/**
+	 * Reads the listing's own saved Website URL and looks for a real photo it already
+	 * publishes about itself: the Open Graph / Twitter Card image meta tag most sites
+	 * include so the page looks right when shared on WhatsApp, Facebook, etc. Free —
+	 * no API key, no signup, no external service, just a normal HTTP request to a URL
+	 * the business itself put in the listing.
+	 */
+	private function website_photo_url_for_post( $post_id ) {
+		$site = get_post_meta( $post_id, 'website', true );
+		if ( empty( $site ) || ! is_string( $site ) ) {
+			return '';
+		}
+		$site = trim( $site );
+		if ( ! preg_match( '#^https?://#i', $site ) ) {
+			$site = 'https://' . ltrim( $site, '/' );
+		}
+
+		$resp = wp_remote_get( $site, array(
+			'timeout'     => 12,
+			'redirection' => 4,
+			'sslverify'   => true,
+			'user-agent'  => 'Mozilla/5.0 (compatible; KA-Listing-Bulk-Importer/1.0; +' . home_url( '/' ) . ')',
+		) );
+		if ( is_wp_error( $resp ) ) {
+			return '';
+		}
+		$code = (int) wp_remote_retrieve_response_code( $resp );
+		if ( $code < 200 || $code >= 400 ) {
+			return '';
+		}
+		$body = wp_remote_retrieve_body( $resp );
+		if ( '' === trim( (string) $body ) ) {
+			return '';
+		}
+
+		// Only look inside <head> — cheaper and avoids matching unrelated content on the rest of the page.
+		$head = $body;
+		if ( preg_match( '#<head[^>]*>(.*?)</head>#is', $body, $m ) ) {
+			$head = $m[1];
+		}
+
+		$image_url = '';
+		$patterns  = array(
+			'#<meta[^>]+property=["\']og:image(?::secure_url)?["\'][^>]+content=["\']([^"\']+)["\']#i',
+			'#<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image(?::secure_url)?["\']#i',
+			'#<meta[^>]+name=["\']twitter:image(?::src)?["\'][^>]+content=["\']([^"\']+)["\']#i',
+			'#<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image(?::src)?["\']#i',
+		);
+		foreach ( $patterns as $pattern ) {
+			if ( preg_match( $pattern, $head, $m ) ) {
+				$image_url = $m[1];
+				break;
+			}
+		}
+		if ( '' === $image_url ) {
+			return '';
+		}
+		$image_url = html_entity_decode( $image_url, ENT_QUOTES );
+
+		// Resolve a protocol-relative or relative image URL against the site's own address.
+		if ( 0 === strpos( $image_url, '//' ) ) {
+			$scheme    = wp_parse_url( $site, PHP_URL_SCHEME );
+			$image_url = ( $scheme ? $scheme : 'https' ) . ':' . $image_url;
+		} elseif ( ! preg_match( '#^https?://#i', $image_url ) ) {
+			$parts = wp_parse_url( $site );
+			if ( empty( $parts['host'] ) ) {
+				return '';
+			}
+			$base = ( isset( $parts['scheme'] ) ? $parts['scheme'] : 'https' ) . '://' . $parts['host'] . ( isset( $parts['port'] ) ? ':' . $parts['port'] : '' );
+			if ( 0 === strpos( $image_url, '/' ) ) {
+				$image_url = $base . $image_url;
+			} else {
+				$path      = isset( $parts['path'] ) ? $parts['path'] : '/';
+				$image_url = $base . trailingslashit( dirname( $path ) ) . $image_url;
+			}
+		}
+
+		return esc_url_raw( $image_url );
+	}
+
+	/** Runs the actual photo lookup + sideload for a fixed list of post IDs, from either source. Shared by the synchronous path and each background-job tick. */
+	private function run_photo_backfill_on_ids( $source, $key, array $post_ids ) {
 		if ( function_exists( 'set_time_limit' ) ) {
 			@set_time_limit( 180 );
 		}
@@ -4412,17 +4526,20 @@ class KA_Listing_Bulk_Importer {
 			}
 			$checked++;
 
-			$location_terms = get_the_terms( $post_id, self::TAX_LOCATION );
-			$city           = ( $location_terms && ! is_wp_error( $location_terms ) ) ? $location_terms[0]->name : '';
-			$query_text     = trim( get_the_title( $post_id ) . ' ' . $city );
+			$photo_url = '';
+			if ( 'website' === $source ) {
+				$photo_url = $this->website_photo_url_for_post( $post_id );
+			} else {
+				$location_terms = get_the_terms( $post_id, self::TAX_LOCATION );
+				$city           = ( $location_terms && ! is_wp_error( $location_terms ) ) ? $location_terms[0]->name : '';
+				$query_text     = trim( get_the_title( $post_id ) . ' ' . $city );
 
-			$place_id = $this->google_find_place_id( $key, $query_text );
-			if ( is_wp_error( $place_id ) || '' === $place_id ) {
-				$not_found++;
-				continue;
+				$place_id = $this->google_find_place_id( $key, $query_text );
+				if ( ! is_wp_error( $place_id ) && '' !== $place_id ) {
+					$photo_url = $this->google_photo_url_for_place( $key, $place_id );
+				}
 			}
 
-			$photo_url = $this->google_photo_url_for_place( $key, $place_id );
 			if ( '' === $photo_url ) {
 				$not_found++;
 				continue;
@@ -4474,8 +4591,9 @@ class KA_Listing_Bulk_Importer {
 		}
 		set_transient( self::PHOTO_JOB_LOCK_KEY, 1, 30 );
 
-		$key = get_option( self::OPTION_KEY_PREFIX . 'google', '' );
-		if ( '' === $key ) {
+		$source = isset( $job['source'] ) ? $job['source'] : 'google';
+		$key    = get_option( self::OPTION_KEY_PREFIX . 'google', '' );
+		if ( 'google' === $source && '' === $key ) {
 			$job['error'] = __( 'The Google Maps (Places API) key was removed while this job was running.', 'ka-listing-bulk-importer' );
 			$this->finish_photo_job( $job );
 			delete_transient( self::PHOTO_JOB_LOCK_KEY );
@@ -4484,7 +4602,7 @@ class KA_Listing_Bulk_Importer {
 
 		try {
 			$batch  = array_splice( $job['queue'], 0, self::PHOTO_JOB_BATCH_SIZE );
-			$result = $this->run_photo_backfill_on_ids( $key, $batch );
+			$result = $this->run_photo_backfill_on_ids( $source, $key, $batch );
 			$job['done']      += count( $batch );
 			$job['found']     += $result['found'];
 			$job['not_found'] += $result['not_found'];
@@ -4524,7 +4642,7 @@ class KA_Listing_Bulk_Importer {
 			'checked'   => $job['done'],
 			'found'     => $job['found'],
 			'not_found' => $job['not_found'],
-		), isset( $job['error'] ) ? $job['error'] : '' );
+		), isset( $job['error'] ) ? $job['error'] : '', isset( $job['source'] ) ? $job['source'] : 'google' );
 
 		$to = get_option( 'admin_email' );
 		if ( ! $to ) {
@@ -4550,7 +4668,7 @@ class KA_Listing_Bulk_Importer {
 	}
 
 	/** Appends one entry to the persistent "Backfill missing photos" run log (newest first), capped at PHOTO_LOG_MAX entries. */
-	private function log_photo_run( $location_label, $category_label, $mode, array $result, $error = '' ) {
+	private function log_photo_run( $location_label, $category_label, $mode, array $result, $error = '', $source = 'google' ) {
 		$log = get_option( self::OPTION_PHOTO_LOG, array() );
 		if ( ! is_array( $log ) ) {
 			$log = array();
@@ -4560,6 +4678,7 @@ class KA_Listing_Bulk_Importer {
 			'location'  => $location_label,
 			'category'  => $category_label,
 			'mode'      => $mode, // 'sync' | 'background'
+			'source'    => ( 'website' === $source ) ? 'website' : 'google',
 			'checked'   => (int) ( $result['checked'] ?? 0 ),
 			'found'     => (int) ( $result['found'] ?? 0 ),
 			'not_found' => (int) ( $result['not_found'] ?? 0 ),
