@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 3.6.0
+ * Version: 3.7.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -65,6 +65,11 @@ class KA_Listing_Bulk_Importer {
 	const PHOTO_SYNC_CAP       = 40; // at most this many listings are checked inline, in one page load; a bigger scope is decided automatically and run in the background instead
 	const MAX_FILE_BYTES     = 5242880;   // 5 MB CSV
 	const MAX_IMAGE_BYTES    = 10485760;  // 10 MB per photo
+	const OPTION_OPTIMIZE_PHOTOS    = 'ka_lbi_optimize_photos';     // '1'/'0' — resize + re-encode every ingested photo before it's stored, on by default
+	const OPTION_OPTIMIZE_MAX_WIDTH = 'ka_lbi_optimize_max_width';  // px — wider photos are downscaled to this; never upscaled
+	const OPTION_OPTIMIZE_QUALITY    = 'ka_lbi_optimize_quality';   // 1-100 — WebP re-encode quality
+	const OPTIMIZE_MAX_WIDTH_DEFAULT = 1600;
+	const OPTIMIZE_QUALITY_DEFAULT   = 82;
 	const MAX_ROWS           = 2000;
 	const MAX_DISCOVER_RESULTS = 60;
 	const TRANSIENT_TTL      = 3600; // 1 hour
@@ -521,6 +526,37 @@ class KA_Listing_Bulk_Importer {
 				</div>
 			<?php endforeach; ?>
 
+			<div class="ka-lbi-card">
+				<h2><span class="dashicons dashicons-format-image"></span> <?php esc_html_e( 'Photo storage & optimization', 'ka-listing-bulk-importer' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'Every photo this plugin brings in — from a CSV, Discover, or "Backfill missing photos" — is always downloaded and stored in your own Media Library on this server (never hotlinked). This section controls whether it is also resized and re-encoded first, to keep it small. Free and self-hosted: uses only your server\'s own image library (GD/Imagick), no external service and no monthly limit.', 'ka-listing-bulk-importer' ); ?></p>
+				<table class="form-table">
+					<tr>
+						<th><?php esc_html_e( 'Optimize photos', 'ka-listing-bulk-importer' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="ka_lbi_optimize_photos" value="1" <?php checked( '1', get_option( self::OPTION_OPTIMIZE_PHOTOS, '1' ) ); ?> />
+								<?php esc_html_e( 'Resize and re-encode as WebP before storing (recommended)', 'ka-listing-bulk-importer' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Turn this off to store every photo exactly as downloaded, with no resizing or re-encoding.', 'ka-listing-bulk-importer' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="ka_lbi_optimize_max_width"><?php esc_html_e( 'Max width (px)', 'ka-listing-bulk-importer' ); ?></label></th>
+						<td>
+							<input type="number" min="200" max="4000" step="50" name="ka_lbi_optimize_max_width" id="ka_lbi_optimize_max_width" class="small-text" value="<?php echo esc_attr( get_option( self::OPTION_OPTIMIZE_MAX_WIDTH, self::OPTIMIZE_MAX_WIDTH_DEFAULT ) ); ?>" />
+							<p class="description"><?php esc_html_e( 'Wider photos are shrunk to this width (aspect ratio kept). Narrower photos are never enlarged.', 'ka-listing-bulk-importer' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="ka_lbi_optimize_quality"><?php esc_html_e( 'WebP quality', 'ka-listing-bulk-importer' ); ?></label></th>
+						<td>
+							<input type="number" min="1" max="100" step="1" name="ka_lbi_optimize_quality" id="ka_lbi_optimize_quality" class="small-text" value="<?php echo esc_attr( get_option( self::OPTION_OPTIMIZE_QUALITY, self::OPTIMIZE_QUALITY_DEFAULT ) ); ?>" />
+							<p class="description"><?php esc_html_e( '1-100. Lower = smaller files, more visible compression. 80-85 is a good balance for photos.', 'ka-listing-bulk-importer' ); ?></p>
+						</td>
+					</tr>
+				</table>
+			</div>
+
 			<?php submit_button( __( 'Save & test all keys', 'ka-listing-bulk-importer' ) ); ?>
 		</form>
 
@@ -821,6 +857,12 @@ class KA_Listing_Bulk_Importer {
 		$keys   = isset( $_POST['ka_lbi_key'] ) ? (array) wp_unslash( $_POST['ka_lbi_key'] ) : array();
 		$models = isset( $_POST['ka_lbi_model'] ) ? (array) wp_unslash( $_POST['ka_lbi_model'] ) : array();
 		$costs  = isset( $_POST['ka_lbi_cost'] ) ? (array) wp_unslash( $_POST['ka_lbi_cost'] ) : array();
+
+		update_option( self::OPTION_OPTIMIZE_PHOTOS, ! empty( $_POST['ka_lbi_optimize_photos'] ) ? '1' : '0', false );
+		$max_width = isset( $_POST['ka_lbi_optimize_max_width'] ) ? (int) $_POST['ka_lbi_optimize_max_width'] : self::OPTIMIZE_MAX_WIDTH_DEFAULT;
+		update_option( self::OPTION_OPTIMIZE_MAX_WIDTH, $max_width > 0 ? $max_width : self::OPTIMIZE_MAX_WIDTH_DEFAULT, false );
+		$quality = isset( $_POST['ka_lbi_optimize_quality'] ) ? (int) $_POST['ka_lbi_optimize_quality'] : self::OPTIMIZE_QUALITY_DEFAULT;
+		update_option( self::OPTION_OPTIMIZE_QUALITY, ( $quality > 0 && $quality <= 100 ) ? $quality : self::OPTIMIZE_QUALITY_DEFAULT, false );
 
 		foreach ( self::PROVIDERS as $slug => $def ) {
 			$key = isset( $keys[ $slug ] ) ? trim( preg_replace( '/[^A-Za-z0-9_\-\.]/', '', $keys[ $slug ] ) ) : '';
@@ -3819,6 +3861,75 @@ class KA_Listing_Bulk_Importer {
 	/* ------------------------------------------------------------------ */
 
 	/**
+	 * Re-encodes an already-downloaded/validated image file to a smaller, self-hosted
+	 * copy before it enters the Media Library — free and self-hosted: uses only
+	 * WordPress's own image editor (GD or Imagick, whichever the host already has),
+	 * no external API, no paid plugin, no monthly limit.
+	 *
+	 * - Downscales to OPTION_OPTIMIZE_MAX_WIDTH if wider (never upscales).
+	 * - Re-encodes as WebP at OPTION_OPTIMIZE_QUALITY.
+	 * - Animated GIFs are left untouched (re-encoding would drop the animation).
+	 * - If the source was already narrow enough, the WebP copy is kept only when
+	 *   it actually comes out smaller than the original — otherwise the original
+	 *   file is kept as-is, so this step can never make a photo bigger.
+	 *
+	 * @param string $source_path Path to the already-downloaded/verified image on disk.
+	 * @return array|false array( 'path' => string, 'name' => string, 'mime' => 'image/webp' ) on success, false to keep the original file untouched.
+	 */
+	private function optimize_image_file( $source_path, $original_name ) {
+		if ( '1' !== get_option( self::OPTION_OPTIMIZE_PHOTOS, '1' ) ) {
+			return false; // optimization turned off in Settings
+		}
+
+		$info = @getimagesize( $source_path );
+		if ( ! $info ) {
+			return false;
+		}
+		if ( 'image/gif' === $info['mime'] ) {
+			return false; // could be animated — never re-encode GIFs
+		}
+
+		$max_width = (int) get_option( self::OPTION_OPTIMIZE_MAX_WIDTH, self::OPTIMIZE_MAX_WIDTH_DEFAULT );
+		$quality   = (int) get_option( self::OPTION_OPTIMIZE_QUALITY, self::OPTIMIZE_QUALITY_DEFAULT );
+		$max_width = $max_width > 0 ? $max_width : self::OPTIMIZE_MAX_WIDTH_DEFAULT;
+		$quality   = ( $quality > 0 && $quality <= 100 ) ? $quality : self::OPTIMIZE_QUALITY_DEFAULT;
+
+		$editor = wp_get_image_editor( $source_path );
+		if ( is_wp_error( $editor ) ) {
+			return false; // no image editor available on this host — keep the original
+		}
+
+		$size      = $editor->get_size();
+		$was_wide  = $size && $size['width'] > $max_width;
+		if ( $was_wide ) {
+			$editor->resize( $max_width, null, false ); // false = keep aspect ratio, don't crop
+		}
+		$editor->set_quality( $quality );
+
+		$new_name = preg_replace( '/\.[^.]+$/', '', sanitize_file_name( $original_name ) ) . '-optimized.webp';
+		$tmp_dir  = dirname( $source_path );
+		$new_path = trailingslashit( $tmp_dir ) . wp_unique_filename( $tmp_dir, $new_name );
+
+		$saved = $editor->save( $new_path, 'image/webp' );
+		if ( is_wp_error( $saved ) || empty( $saved['path'] ) || ! file_exists( $saved['path'] ) ) {
+			return false; // this host's PHP build can't write WebP — keep the original
+		}
+
+		// Only worth swapping in if it actually shrank things, unless we HAD to
+		// downscale it (in which case the smaller dimensions matter regardless of format savings).
+		if ( ! $was_wide && filesize( $saved['path'] ) >= filesize( $source_path ) ) {
+			@unlink( $saved['path'] );
+			return false;
+		}
+
+		return array(
+			'path' => $saved['path'],
+			'name' => wp_basename( $saved['path'] ),
+			'mime' => 'image/webp',
+		);
+	}
+
+	/**
 	 * Turn a CSV photo value into a Media Library attachment ID.
 	 *
 	 * - An https?:// value is downloaded through WordPress's own HTTP API
@@ -3829,6 +3940,11 @@ class KA_Listing_Bulk_Importer {
 	 *
 	 * Every file is verified to actually be an image (via getimagesize)
 	 * before it is attached, regardless of its extension or claimed type.
+	 *
+	 * Every photo that comes through here — CSV import, Discover, and the
+	 * "Backfill missing photos" tool alike — is then resized/re-encoded to a
+	 * smaller, self-hosted WebP copy by optimize_image_file() before it is
+	 * stored (see that method; can be turned off on the Settings tab).
 	 *
 	 * @return int|WP_Error
 	 */
@@ -3875,6 +3991,13 @@ class KA_Listing_Bulk_Importer {
 			$name = 'photo-' . uniqid() . '.jpg';
 		}
 
+		$optimized = $this->optimize_image_file( $tmp, $name );
+		if ( $optimized ) {
+			@unlink( $tmp );
+			$tmp  = $optimized['path'];
+			$name = $optimized['name'];
+		}
+
 		$file_array = array(
 			'name'     => $name,
 			'tmp_name' => $tmp,
@@ -3916,19 +4039,30 @@ class KA_Listing_Bulk_Importer {
 			return new WP_Error( 'ka_lbi_not_image', __( 'Unsupported image type', 'ka-listing-bulk-importer' ) );
 		}
 
-		$contents = file_get_contents( $resolved );
+		// Try to hand off an optimized WebP copy instead of the raw file placed
+		// on the server — see optimize_image_file(); falls back to the original below if not.
+		$optimized_name = basename( $resolved );
+		$optimized      = $this->optimize_image_file( $resolved, $optimized_name );
+		if ( $optimized ) {
+			$contents = file_get_contents( $optimized['path'] );
+			@unlink( $optimized['path'] );
+			$upload_name = $optimized['name'];
+		} else {
+			$contents    = file_get_contents( $resolved );
+			$upload_name = basename( $resolved );
+		}
 		if ( false === $contents ) {
 			return new WP_Error( 'ka_lbi_read_failed', __( 'Could not read the photo file', 'ka-listing-bulk-importer' ) );
 		}
 
-		$upload = wp_upload_bits( basename( $resolved ), null, $contents );
+		$upload = wp_upload_bits( $upload_name, null, $contents );
 		if ( ! empty( $upload['error'] ) ) {
 			return new WP_Error( 'ka_lbi_upload_failed', $upload['error'] );
 		}
 
 		$attachment = array(
-			'post_mime_type' => $filetype['type'],
-			'post_title'     => sanitize_file_name( basename( $resolved ) ),
+			'post_mime_type' => $optimized ? 'image/webp' : $filetype['type'],
+			'post_title'     => sanitize_file_name( $upload_name ),
 			'post_content'   => '',
 			'post_status'    => 'inherit',
 			'post_parent'    => $post_id,
