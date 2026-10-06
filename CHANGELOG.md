@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.3.0
+- Refactored `run_due_schedules` to enqueue background jobs for scheduled discover searches, resolving WP-Cron timeout risks when processing multiple schedules or large queries.
+- Ensured security standards are maintained by properly handling sanitization and CSV uploads.
+
+
+
 All notable changes to this plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).

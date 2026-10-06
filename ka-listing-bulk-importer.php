@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KA Schindler - Listing Bulk Importer
  * Description: Bulk-import ListingPro business listings — either from a CSV file, or auto-discovered by place + category from Google Maps, Claude, Gemini or ChatGPT. Each provider's own live model list loads automatically once its key is saved, with a per-model cost estimate. Preview every row before anything is written, see which rows already exist, and undo a whole import in one click. Built for Klima- und Anlagentechnik Schindler GmbH.
- * Version: 3.2.1
+ * Version: 3.3.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mohammad Babaei
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KA_Listing_Bulk_Importer {
 
-	const VERSION_FALLBACK   = '3.2.0'; // used only if the header comment can't be read for some reason
+	const VERSION_FALLBACK   = '3.3.0'; // used only if the header comment can't be read for some reason
 	const NONCE_ACTION      = 'ka_lbi_action';
 	const SETTINGS_NONCE     = 'ka_lbi_settings';
 	const DISCOVER_NONCE     = 'ka_lbi_discover';
@@ -129,6 +129,7 @@ class KA_Listing_Bulk_Importer {
 		add_action( 'admin_post_ka_lbi_run_schedule_now', array( $this, 'handle_run_schedule_now' ) );
 		add_action( 'admin_post_ka_lbi_toggle_schedule', array( $this, 'handle_toggle_schedule' ) );
 		add_action( 'admin_post_ka_lbi_backfill_photos', array( $this, 'handle_backfill_photos' ) );
+		add_action( 'ka_lbi_process_schedule_job_batch', array( $this, 'process_schedule_job_batch' ) );
 		add_action( self::CRON_HOOK, array( $this, 'run_due_schedules' ) );
 		add_action( 'admin_post_ka_lbi_start_bulk_job', array( $this, 'handle_start_bulk_job' ) );
 		add_action( 'admin_post_ka_lbi_cancel_bulk_job', array( $this, 'handle_cancel_bulk_job' ) );
@@ -153,6 +154,7 @@ class KA_Listing_Bulk_Importer {
 		if ( $timestamp ) {
 			wp_unschedule_event( $timestamp, self::CRON_HOOK );
 		}
+		wp_clear_scheduled_hook( 'ka_lbi_process_schedule_job_batch' );
 		wp_clear_scheduled_hook( self::JOB_CRON_HOOK );
 		delete_option( self::OPTION_JOB );
 		wp_clear_scheduled_hook( self::PHOTO_JOB_CRON_HOOK );
@@ -4322,13 +4324,131 @@ class KA_Listing_Bulk_Importer {
 	 * that decision always stays with a human), and emails the site admin one
 	 * summary of everything that ran.
 	 */
+
+	public function process_schedule_job_batch() {
+		$job = get_option( 'ka_lbi_schedule_job', false );
+		if ( ! $job || empty( $job['queue'] ) ) {
+			if ( $job ) {
+				if ( ! empty( $job['summaries'] ) ) {
+				    $this->email_schedule_summary( $job['summaries'] );
+				}
+				delete_option( 'ka_lbi_schedule_job' );
+			}
+			return;
+		}
+
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 120 );
+		}
+
+		try {
+			$batch = array_splice( $job['queue'], 0, self::JOB_BATCH_SIZE );
+			foreach ( $batch as $pair ) {
+				$cat_term = get_term_by( 'slug', $pair['category'], self::TAX_CATEGORY );
+				if ( ! $cat_term ) {
+					$job['done']++;
+					continue;
+				}
+
+				$key = get_option( self::OPTION_KEY_PREFIX . $pair['provider'], '' );
+				if ( '' === $key ) {
+				    $job['done']++;
+				    continue;
+				}
+
+				$found = ( 'google' === $pair['provider'] )
+					? $this->discover_google( $key, $pair['location'], $cat_term, $pair['max'] )
+					: $this->discover_ai( $pair['provider'], $key, $pair['location'], $cat_term, $pair['max'] );
+
+				$created_this_tick = 0;
+				$skipped_this_tick = 0;
+
+				if ( ! is_wp_error( $found ) ) {
+					foreach ( $found as $i => $fields ) {
+						$record = $this->make_record( $i, $fields );
+						if ( ! empty( $record['errors'] ) || ! empty( $record['duplicates'] ) ) {
+							$job['skipped']++;
+							$skipped_this_tick++;
+							continue;
+						}
+						$write = $this->write_row( $record['fields'], 'pending', 0 );
+						if ( ! is_wp_error( $write['post_id'] ) ) {
+							$job['created']++;
+							$created_this_tick++;
+						} else {
+							$job['skipped']++;
+							$skipped_this_tick++;
+						}
+					}
+					$this->log_discover_search( $pair['location'], $cat_term->name, $pair['provider'], 'new_only', count( $found ), $created_this_tick );
+
+					$is_ai        = self::PROVIDERS[ $pair['provider'] ]['is_ai'];
+					$active_model = $is_ai ? get_option( self::OPTION_MODEL_PREFIX . $pair['provider'], self::PROVIDERS[ $pair['provider'] ]['default_model'] ) : '';
+					$cost_each    = (float) get_option( $this->cost_option_key( $pair['provider'], $active_model ), 0 );
+					if ( $cost_each > 0 && ! empty( $found ) ) {
+						$spend_option = self::OPTION_SPEND_PREFIX . $pair['provider'];
+						update_option( $spend_option, (float) get_option( $spend_option, 0 ) + ( $cost_each * count( $found ) ), false );
+					}
+				}
+
+				// Update summaries
+				$schedule_id = $pair['schedule_id'];
+				if ( ! isset( $job['summaries'][ $schedule_id ] ) ) {
+				    $schedules = $this->get_schedules();
+				    $provider_label = $pair['provider'];
+				    foreach ( $schedules as $s ) {
+				        if ( $s['id'] === $schedule_id ) {
+				            $provider_label = self::PROVIDERS[ $s['provider'] ]['label'] ?? $s['provider'];
+				            break;
+				        }
+				    }
+				    $job['summaries'][ $schedule_id ] = array(
+			            'location' => $pair['location'],
+			            'provider' => $provider_label,
+			            'found'    => 0,
+			            'created'  => 0,
+			            'skipped'  => 0,
+			            'error'    => '',
+		            );
+				}
+
+				if ( ! is_wp_error( $found ) ) {
+				    $job['summaries'][ $schedule_id ]['found'] += count( $found );
+				    $job['summaries'][ $schedule_id ]['created'] += $created_this_tick;
+				    $job['summaries'][ $schedule_id ]['skipped'] += $skipped_this_tick;
+				} else {
+				    $job['summaries'][ $schedule_id ]['error'] = $found->get_error_message();
+				}
+
+				$job['done']++;
+			}
+		} catch ( \Throwable $e ) {
+			error_log( '[KA Listing Bulk Importer] Schedule job error: ' . $e->getMessage() );
+		}
+
+		$job['updated_at'] = time();
+
+		if ( empty( $job['queue'] ) ) {
+		    if ( ! empty( $job['summaries'] ) ) {
+			    $this->email_schedule_summary( array_values( $job['summaries'] ) );
+			}
+			delete_option( 'ka_lbi_schedule_job' );
+			return;
+		}
+
+		update_option( 'ka_lbi_schedule_job', $job, false );
+		wp_schedule_single_event( time() + self::JOB_TICK_DELAY, 'ka_lbi_process_schedule_job_batch' );
+	}
+
 	public function run_due_schedules() {
 		$schedules = $this->get_schedules();
 		if ( empty( $schedules ) ) {
 			return;
 		}
 
-		$summaries = array();
+		$queue = array();
+		$due_schedules = array();
+
 		foreach ( $schedules as $s ) {
 			if ( empty( $s['enabled'] ) ) {
 				$this->log_schedule_run( $s, 'skipped_disabled' );
@@ -4340,14 +4460,64 @@ class KA_Listing_Bulk_Importer {
 				$this->log_schedule_run( $s, 'skipped_not_due' );
 				continue; // not due yet
 			}
-			$result      = $this->execute_one_schedule( $s );
-			$summaries[] = $result;
+
+			// Schedule is due. Enqueue it.
+			$due_schedules[] = $s;
+
+			// Enqueue combos to be processed
+			$sel_cats       = ! empty( $s['categories'] ) && is_array( $s['categories'] ) ? $s['categories'] : array();
+			$all_categories = empty( $sel_cats );
+			if ( $all_categories ) {
+				$cat_terms = get_terms( array( 'taxonomy' => self::TAX_CATEGORY, 'hide_empty' => false ) );
+				if ( ! is_wp_error( $cat_terms ) && ! empty( $cat_terms ) ) {
+					$sel_cats = wp_list_pluck( $cat_terms, 'slug' );
+				}
+			}
+
+			foreach ( $sel_cats as $cat_slug ) {
+			    $queue[] = array(
+			        'location' => $s['location'],
+			        'category' => $cat_slug,
+			        'provider' => $s['provider'],
+			        'max'      => $s['max'],
+			        'schedule_id' => $s['id']
+			    );
+			}
+
 			$this->update_schedule_last_run( $s['id'] );
-			$this->log_schedule_run( $s, ! empty( $result['error'] ) ? 'error' : 'ran', $result );
 		}
 
-		if ( ! empty( $summaries ) ) {
-			$this->email_schedule_summary( $summaries );
+		if ( empty( $queue ) ) {
+			return;
+		}
+
+		// If a job is already running, we should just merge the queues if possible,
+		// but since we email summaries, it's complex. Let's create a dedicated schedule job option.
+		// Actually, let's just queue it up in a dedicated schedule job option to not conflict with manual bulk jobs.
+		$schedule_job = get_option( 'ka_lbi_schedule_job', false );
+		if ( ! $schedule_job ) {
+		    $schedule_job = array(
+		        'id'         => wp_generate_uuid4(),
+		        'queue'      => $queue,
+		        'total'      => count( $queue ),
+		        'done'       => 0,
+		        'created'    => 0,
+		        'skipped'    => 0,
+		        'summaries'  => array(), // Store summaries here
+		        'started_at' => current_time( 'mysql' ),
+		        'updated_at' => 0,
+		    );
+		} else {
+		    // Append to existing running schedule job queue
+		    $schedule_job['queue'] = array_merge( $schedule_job['queue'], $queue );
+		    $schedule_job['total'] += count( $queue );
+		}
+
+		update_option( 'ka_lbi_schedule_job', $schedule_job, false );
+
+		// Schedule the first tick
+		if ( ! wp_next_scheduled( 'ka_lbi_process_schedule_job_batch' ) ) {
+		    wp_schedule_single_event( time() + 10, 'ka_lbi_process_schedule_job_batch' );
 		}
 	}
 
