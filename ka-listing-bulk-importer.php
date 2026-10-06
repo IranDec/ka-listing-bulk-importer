@@ -129,8 +129,8 @@ class KA_Listing_Bulk_Importer {
 		add_action( 'admin_post_ka_lbi_run_schedule_now', array( $this, 'handle_run_schedule_now' ) );
 		add_action( 'admin_post_ka_lbi_toggle_schedule', array( $this, 'handle_toggle_schedule' ) );
 		add_action( 'admin_post_ka_lbi_backfill_photos', array( $this, 'handle_backfill_photos' ) );
-		add_action( 'ka_lbi_process_schedule_job_batch', array( $this, 'process_schedule_job_batch' ) );
 		add_action( self::CRON_HOOK, array( $this, 'run_due_schedules' ) );
+		add_action( 'ka_lbi_process_schedule_job_batch', array( $this, 'process_schedule_job_batch' ) );
 		add_action( 'admin_post_ka_lbi_start_bulk_job', array( $this, 'handle_start_bulk_job' ) );
 		add_action( 'admin_post_ka_lbi_cancel_bulk_job', array( $this, 'handle_cancel_bulk_job' ) );
 		add_action( self::JOB_CRON_HOOK, array( $this, 'process_job_batch' ) );
@@ -154,8 +154,8 @@ class KA_Listing_Bulk_Importer {
 		if ( $timestamp ) {
 			wp_unschedule_event( $timestamp, self::CRON_HOOK );
 		}
-		wp_clear_scheduled_hook( 'ka_lbi_process_schedule_job_batch' );
 		wp_clear_scheduled_hook( self::JOB_CRON_HOOK );
+		wp_clear_scheduled_hook( 'ka_lbi_process_schedule_job_batch' );
 		delete_option( self::OPTION_JOB );
 		wp_clear_scheduled_hook( self::PHOTO_JOB_CRON_HOOK );
 		delete_option( self::OPTION_PHOTO_JOB );
@@ -4324,13 +4324,12 @@ class KA_Listing_Bulk_Importer {
 	 * that decision always stays with a human), and emails the site admin one
 	 * summary of everything that ran.
 	 */
-
 	public function process_schedule_job_batch() {
 		$job = get_option( 'ka_lbi_schedule_job', false );
 		if ( ! $job || empty( $job['queue'] ) ) {
 			if ( $job ) {
 				if ( ! empty( $job['summaries'] ) ) {
-				    $this->email_schedule_summary( $job['summaries'] );
+				    $this->email_schedule_summary( array_values( $job['summaries'] ) );
 				}
 				delete_option( 'ka_lbi_schedule_job' );
 			}
