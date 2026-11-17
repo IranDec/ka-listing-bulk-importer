@@ -1,0 +1,2074 @@
+# Copyright (C) 2026 Mohammad Babaei
+# This file is distributed under the same license as the KA Schindler - Listing Bulk Importer plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: KA Schindler - Listing Bulk Importer 4.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/ka-listing-bulk-importer\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-11-17T14:05:24+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: ka-listing-bulk-importer\n"
+
+#. Plugin Name of the plugin
+#: ka-listing-bulk-importer.php
+msgid "KA Schindler - Listing Bulk Importer"
+msgstr ""
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: ka-listing-bulk-importer.php
+msgid "https://adschi.com"
+msgstr ""
+
+#. Description of the plugin
+#: ka-listing-bulk-importer.php
+msgid "Grow a ListingPro directory: discover businesses with Google Places (New) or AI, import CSV files, review new listings in one queue, enrich existing ones from their own websites, find gaps and duplicates, and keep fa/de/en versions in step with Polylang."
+msgstr ""
+
+#. Author of the plugin
+#: ka-listing-bulk-importer.php
+msgid "Mohammad Babaei"
+msgstr ""
+
+#: admin/views/dashboard.php:18
+msgid "Listings (source language)"
+msgstr ""
+
+#: admin/views/dashboard.php:25
+msgid "Waiting for review"
+msgstr ""
+
+#: admin/views/dashboard.php:29
+msgid "Complete profiles"
+msgstr ""
+
+#: admin/views/dashboard.php:29
+msgid "photo, phone, website, address, map"
+msgstr ""
+
+#: admin/views/dashboard.php:33
+msgid "Without a photo"
+msgstr ""
+
+#: admin/views/dashboard.php:43
+msgid "Data completeness"
+msgstr ""
+
+#: admin/views/dashboard.php:44
+msgid "Refresh"
+msgstr ""
+
+#. translators: %s: number of listings
+#: admin/views/dashboard.php:57
+#, php-format
+msgid "%s missing"
+msgstr ""
+
+#. translators: %s: time
+#: admin/views/dashboard.php:64
+#, php-format
+msgid "Counted %s. KA Translate copies are not counted - they follow their source listing."
+msgstr ""
+
+#: admin/views/dashboard.php:69
+msgid "Start something"
+msgstr ""
+
+#: admin/views/dashboard.php:71
+msgid "Discover businesses"
+msgstr ""
+
+#: admin/views/dashboard.php:71
+msgid "Google Places or AI, by city and category"
+msgstr ""
+
+#: admin/views/dashboard.php:72
+msgid "Enrich listings"
+msgstr ""
+
+#: admin/views/dashboard.php:72
+msgid "E-mail, socials, photos from their websites"
+msgstr ""
+
+#: admin/views/dashboard.php:73
+msgid "Import a CSV file"
+msgstr ""
+
+#: admin/views/dashboard.php:73
+msgid "Map columns, preview, import"
+msgstr ""
+
+#: admin/views/dashboard.php:74
+msgid "Find duplicates"
+msgstr ""
+
+#: admin/views/dashboard.php:74
+msgid "Same phone, website or name"
+msgstr ""
+
+#: admin/views/dashboard.php:76
+#: admin/views/settings.php:23
+msgid "Data sources"
+msgstr ""
+
+#: admin/views/dashboard.php:81
+#: admin/views/photos.php:76
+#: admin/views/settings.php:37
+msgid "no key"
+msgstr ""
+
+#: admin/views/dashboard.php:83
+msgid "key not working"
+msgstr ""
+
+#: admin/views/dashboard.php:85
+msgid "ready"
+msgstr ""
+
+#. translators: %s: language name
+#: admin/views/dashboard.php:95
+#, php-format
+msgid "New listings are written in %s."
+msgstr ""
+
+#: admin/views/dashboard.php:97
+msgid "KA Translate adds the other languages after publishing."
+msgstr ""
+
+#: admin/views/dashboard.php:97
+msgid "KA Translate is not active - other languages are not created automatically."
+msgstr ""
+
+#: admin/views/dashboard.php:105
+msgid "Recent imports"
+msgstr ""
+
+#: admin/views/dashboard.php:107
+msgid "Nothing imported yet."
+msgstr ""
+
+#: admin/views/dashboard.php:110
+#: admin/views/discover.php:169
+#: admin/views/photos.php:90
+#: admin/views/schedules.php:102
+msgid "When"
+msgstr ""
+
+#: admin/views/dashboard.php:110
+#: admin/views/discover.php:107
+#: admin/views/discover.php:169
+#: admin/views/review.php:33
+#: admin/views/schedules.php:37
+#: admin/views/schedules.php:70
+msgid "Source"
+msgstr ""
+
+#: admin/views/dashboard.php:110
+msgid "By"
+msgstr ""
+
+#: admin/views/dashboard.php:110
+#: admin/views/import.php:293
+msgid "Created"
+msgstr ""
+
+#: admin/views/dashboard.php:110
+#: admin/views/import.php:293
+msgid "Updated"
+msgstr ""
+
+#: admin/views/dashboard.php:119
+#: admin/views/schedules.php:102
+msgid "Schedule"
+msgstr ""
+
+#: admin/views/dashboard.php:124
+msgid "Move all listings created by this import (and their translations) to the trash?"
+msgstr ""
+
+#: admin/views/dashboard.php:124
+msgid "Undo"
+msgstr ""
+
+#. translators: %d: number of rows
+#: admin/views/discover.php:36
+#, php-format
+msgid "You have an unfinished preview with %d results."
+msgstr ""
+
+#: admin/views/discover.php:38
+msgid "Continue reviewing"
+msgstr ""
+
+#: admin/views/discover.php:47
+msgid "Add a data source first"
+msgstr ""
+
+#: admin/views/discover.php:48
+msgid "Discover needs a Google Places (New) key - recommended, live and verified data - or a key for Gemini, Claude or ChatGPT."
+msgstr ""
+
+#: admin/views/discover.php:50
+msgid "Open settings"
+msgstr ""
+
+#: admin/views/discover.php:62
+msgid "Where?"
+msgstr ""
+
+#: admin/views/discover.php:64
+msgid "Import language"
+msgstr ""
+
+#: admin/views/discover.php:75
+msgid "Filter cities…"
+msgstr ""
+
+#: admin/views/discover.php:75
+msgid "Filter cities"
+msgstr ""
+
+#: admin/views/discover.php:76
+#: includes/class-lbi-admin.php:275
+msgid "Clear"
+msgstr ""
+
+#: admin/views/discover.php:91
+msgid "A city that is not on the site yet"
+msgstr ""
+
+#: admin/views/discover.php:92
+msgid "One per line or separated by commas, e.g. Lübeck, Kiel"
+msgstr ""
+
+#: admin/views/discover.php:93
+msgid "Missing locations are created automatically when listings are imported."
+msgstr ""
+
+#: admin/views/discover.php:93
+msgid "Creating locations is switched off in the settings - listings get no location."
+msgstr ""
+
+#: admin/views/discover.php:99
+msgid "What?"
+msgstr ""
+
+#: admin/views/discover.php:100
+msgid "listings already there"
+msgstr ""
+
+#: admin/views/discover.php:100
+#: includes/class-lbi-admin.php:122
+msgid "searched in the last 30 days"
+msgstr ""
+
+#: admin/views/discover.php:103
+msgid "Each category is one search per city. Nothing selected means all categories."
+msgstr ""
+
+#: admin/views/discover.php:117
+msgid "recommended"
+msgstr ""
+
+#: admin/views/discover.php:120
+msgid "no key saved"
+msgstr ""
+
+#: admin/views/discover.php:120
+msgid "key test failed"
+msgstr ""
+
+#: admin/views/discover.php:133
+msgid "Options"
+msgstr ""
+
+#: admin/views/discover.php:136
+msgid "Results per search"
+msgstr ""
+
+#. translators: %d: results
+#: admin/views/discover.php:140
+#, php-format
+msgid "Background runs use at most %d per search (Settings)."
+msgstr ""
+
+#: admin/views/discover.php:142
+#: admin/views/import.php:58
+msgid "Status of new listings"
+msgstr ""
+
+#: admin/views/discover.php:144
+#: admin/views/import.php:60
+msgid "Pending review (recommended)"
+msgstr ""
+
+#: admin/views/discover.php:145
+#: admin/views/import.php:61
+#: admin/views/import.php:268
+msgid "Draft"
+msgstr ""
+
+#: admin/views/discover.php:146
+#: admin/views/import.php:62
+#: admin/views/import.php:269
+msgid "Published"
+msgstr ""
+
+#: admin/views/discover.php:150
+msgid "Already existing businesses"
+msgstr ""
+
+#: admin/views/discover.php:151
+msgid "Show them, I decide"
+msgstr ""
+
+#: admin/views/discover.php:151
+msgid "Possible duplicates are marked and set to skip."
+msgstr ""
+
+#: admin/views/discover.php:152
+msgid "Only new ones"
+msgstr ""
+
+#: admin/views/discover.php:152
+msgid "Leave out anything that looks like it exists."
+msgstr ""
+
+#: admin/views/discover.php:153
+msgid "Update existing ones"
+msgstr ""
+
+#: admin/views/discover.php:153
+msgid "Matches are preset to update the existing listing."
+msgstr ""
+
+#: admin/views/discover.php:159
+#: includes/class-lbi-admin.php:117
+msgid "searches"
+msgstr ""
+
+#: admin/views/discover.php:160
+msgid "Start search"
+msgstr ""
+
+#: admin/views/discover.php:167
+msgid "Recent searches"
+msgstr ""
+
+#: admin/views/discover.php:169
+#: admin/views/import.php:210
+#: admin/views/photos.php:42
+#: admin/views/quality.php:86
+#: admin/views/quality.php:105
+#: admin/views/review.php:38
+#: admin/views/schedules.php:37
+#: admin/views/schedules.php:67
+msgid "City"
+msgstr ""
+
+#: admin/views/discover.php:169
+#: admin/views/import.php:200
+#: admin/views/photos.php:48
+#: includes/class-lbi-store.php:16
+msgid "Category"
+msgstr ""
+
+#: admin/views/discover.php:169
+msgid "Results"
+msgstr ""
+
+#: admin/views/import.php:11
+#: admin/views/quality.php:25
+#: admin/views/review.php:15
+msgid "same Google place"
+msgstr ""
+
+#: admin/views/import.php:12
+#: admin/views/quality.php:25
+#: admin/views/review.php:15
+msgid "same name"
+msgstr ""
+
+#: admin/views/import.php:13
+#: admin/views/quality.php:25
+#: admin/views/review.php:15
+msgid "same phone"
+msgstr ""
+
+#: admin/views/import.php:14
+#: admin/views/quality.php:25
+#: admin/views/review.php:15
+msgid "same website"
+msgstr ""
+
+#: admin/views/import.php:17
+msgid "Upload"
+msgstr ""
+
+#: admin/views/import.php:18
+msgid "Columns"
+msgstr ""
+
+#: admin/views/import.php:19
+#: includes/class-lbi-admin.php:16
+msgid "Review"
+msgstr ""
+
+#: admin/views/import.php:20
+msgid "Done"
+msgstr ""
+
+#: admin/views/import.php:46
+msgid "Upload a CSV file"
+msgstr ""
+
+#: admin/views/import.php:53
+msgid "Choose a CSV file or drop it here"
+msgstr ""
+
+#: admin/views/import.php:54
+msgid "UTF-8, comma or semicolon separated, up to 2,000 rows / 5 MB"
+msgstr ""
+
+#: admin/views/import.php:67
+msgid "Language of the file"
+msgstr ""
+
+#: admin/views/import.php:72
+msgid "Upload and continue"
+msgstr ""
+
+#: admin/views/import.php:76
+msgid "Good to know"
+msgstr ""
+
+#: admin/views/import.php:78
+msgid "Nothing is written before the review step - you see every row, possible duplicates and problems first."
+msgstr ""
+
+#: admin/views/import.php:79
+msgid "Only a title is required. Columns are matched automatically by name (English, German or Persian headers)."
+msgstr ""
+
+#: admin/views/import.php:80
+msgid "Categories and cities can be names or slugs in any language; they are mapped to the import language."
+msgstr ""
+
+#. translators: %s: folder path
+#: admin/views/import.php:84
+#, php-format
+msgid "Photos: a web address, or a file name of an image you uploaded to %s."
+msgstr ""
+
+#: admin/views/import.php:88
+msgid "Download the CSV template"
+msgstr ""
+
+#: admin/views/import.php:96
+#: includes/class-lbi-csv.php:172
+msgid "The uploaded file has expired. Please upload it again."
+msgstr ""
+
+#: admin/views/import.php:96
+msgid "Back"
+msgstr ""
+
+#. translators: 1: rows, 2: columns
+#: admin/views/import.php:108
+#, php-format
+msgid "%1$d rows, %2$d columns"
+msgstr ""
+
+#: admin/views/import.php:112
+msgid "Column in the file"
+msgstr ""
+
+#: admin/views/import.php:112
+msgid "Examples"
+msgstr ""
+
+#: admin/views/import.php:112
+msgid "Becomes"
+msgstr ""
+
+#: admin/views/import.php:125
+msgid "— ignore —"
+msgstr ""
+
+#: admin/views/import.php:137
+msgid "City for rows without one (optional)"
+msgstr ""
+
+#: admin/views/import.php:142
+msgid "Category for rows without one (optional)"
+msgstr ""
+
+#: admin/views/import.php:146
+msgid "* A title column is required."
+msgstr ""
+
+#: admin/views/import.php:147
+msgid "Continue to the review"
+msgstr ""
+
+#: admin/views/import.php:148
+msgid "Start over"
+msgstr ""
+
+#: admin/views/import.php:154
+msgid "Nothing to review - the preview has expired or was imported already."
+msgstr ""
+
+#: admin/views/import.php:172
+msgid "All"
+msgstr ""
+
+#: admin/views/import.php:173
+msgid "New"
+msgstr ""
+
+#: admin/views/import.php:174
+msgid "Possibly existing"
+msgstr ""
+
+#: admin/views/import.php:175
+msgid "Problems"
+msgstr ""
+
+#: admin/views/import.php:178
+msgid "Import all new"
+msgstr ""
+
+#: admin/views/import.php:179
+msgid "Skip all"
+msgstr ""
+
+#: admin/views/import.php:180
+msgid "Export CSV"
+msgstr ""
+
+#: admin/views/import.php:194
+#: includes/class-lbi-store.php:14
+msgid "Title"
+msgstr ""
+
+#: admin/views/import.php:196
+#: includes/class-lbi-quality.php:22
+#: includes/class-lbi-store.php:25
+msgid "Address"
+msgstr ""
+
+#: admin/views/import.php:197
+#: admin/views/settings.php:129
+#: includes/class-lbi-enrich.php:24
+#: includes/class-lbi-quality.php:19
+#: includes/class-lbi-store.php:28
+msgid "Phone"
+msgstr ""
+
+#: admin/views/import.php:198
+#: includes/class-lbi-quality.php:21
+#: includes/class-lbi-store.php:31
+msgid "Website"
+msgstr ""
+
+#: admin/views/import.php:199
+#: admin/views/settings.php:128
+#: includes/class-lbi-enrich.php:23
+#: includes/class-lbi-quality.php:20
+#: includes/class-lbi-store.php:30
+msgid "E-mail"
+msgstr ""
+
+#: admin/views/import.php:201
+msgid "— no category —"
+msgstr ""
+
+#: admin/views/import.php:215
+msgid "photo"
+msgstr ""
+
+#: admin/views/import.php:218
+msgid "opening hours"
+msgstr ""
+
+#: admin/views/import.php:224
+msgid "Google Maps"
+msgstr ""
+
+#: admin/views/import.php:238
+msgid "Possibly existing:"
+msgstr ""
+
+#: admin/views/import.php:247
+msgid "Action"
+msgstr ""
+
+#: admin/views/import.php:249
+msgid "Import as new"
+msgstr ""
+
+#: admin/views/import.php:250
+msgid "Skip"
+msgstr ""
+
+#. translators: %s: listing title
+#: admin/views/import.php:254
+#, php-format
+msgid "Update \"%s\""
+msgstr ""
+
+#: admin/views/import.php:264
+msgid "rows will be written"
+msgstr ""
+
+#: admin/views/import.php:265
+msgid "as"
+msgstr ""
+
+#: admin/views/import.php:267
+msgid "Pending review"
+msgstr ""
+
+#: admin/views/import.php:273
+msgid "Discard this preview?"
+msgstr ""
+
+#: admin/views/import.php:273
+msgid "Discard"
+msgstr ""
+
+#: admin/views/import.php:274
+msgid "Import"
+msgstr ""
+
+#: admin/views/import.php:282
+msgid "No results to show."
+msgstr ""
+
+#: admin/views/import.php:287
+msgid "created"
+msgstr ""
+
+#: admin/views/import.php:288
+msgid "updated"
+msgstr ""
+
+#: admin/views/import.php:289
+#: includes/class-lbi-admin.php:127
+msgid "skipped"
+msgstr ""
+
+#: admin/views/import.php:290
+#: includes/class-lbi-admin.php:129
+msgid "failed"
+msgstr ""
+
+#: admin/views/import.php:293
+msgid "Failed"
+msgstr ""
+
+#: admin/views/import.php:304
+msgid "Photo problems (the listing was still saved)"
+msgstr ""
+
+#: admin/views/import.php:308
+msgid "Open the review queue"
+msgstr ""
+
+#: admin/views/import.php:309
+msgid "New search"
+msgstr ""
+
+#: admin/views/import.php:310
+msgid "Import another file"
+msgstr ""
+
+#: admin/views/photos.php:35
+msgid "Fill missing data of existing listings"
+msgstr ""
+
+#: admin/views/photos.php:37
+msgid "Reads each business's own website (home page and Impressum/contact page) and, if you like, Google Places. Only empty fields are filled - nothing you entered is ever overwritten. The results are copied to the other language versions too."
+msgstr ""
+
+#: admin/views/photos.php:41
+msgid "Which listings"
+msgstr ""
+
+#: admin/views/photos.php:43
+#: admin/views/quality.php:87
+#: admin/views/review.php:39
+msgid "All cities"
+msgstr ""
+
+#: admin/views/photos.php:49
+msgid "All categories"
+msgstr ""
+
+#: admin/views/photos.php:54
+msgid "Only listings missing"
+msgstr ""
+
+#: admin/views/photos.php:55
+msgid "Any listing missing one of the fields"
+msgstr ""
+
+#: admin/views/photos.php:56
+msgid "Only listings without e-mail"
+msgstr ""
+
+#: admin/views/photos.php:57
+msgid "Only listings without photo"
+msgstr ""
+
+#: admin/views/photos.php:58
+msgid "Only listings without phone"
+msgstr ""
+
+#: admin/views/photos.php:59
+msgid "Only listings without website (Google)"
+msgstr ""
+
+#: admin/views/photos.php:60
+msgid "Only listings without address (Google)"
+msgstr ""
+
+#. translators: %d: days
+#: admin/views/photos.php:64
+#, php-format
+msgid "Also listings checked in the last %d days"
+msgstr ""
+
+#: admin/views/photos.php:68
+msgid "Fill in"
+msgstr ""
+
+#: admin/views/photos.php:74
+msgid "Sources"
+msgstr ""
+
+#: admin/views/photos.php:75
+msgid "The listing's own website - free"
+msgstr ""
+
+#: admin/views/photos.php:76
+msgid "Google Places (New) - one paid request per listing"
+msgstr ""
+
+#. translators: %d: number of listings
+#: admin/views/photos.php:81
+#, php-format
+msgid "Up to %d listings are done right away; more run in the background with live progress."
+msgstr ""
+
+#: admin/views/photos.php:83
+msgid "Start"
+msgstr ""
+
+#: admin/views/photos.php:88
+msgid "Recent runs"
+msgstr ""
+
+#: admin/views/photos.php:90
+msgid "Scope"
+msgstr ""
+
+#: admin/views/photos.php:90
+msgid "Result"
+msgstr ""
+
+#: admin/views/quality.php:20
+msgid "Coverage"
+msgstr ""
+
+#: admin/views/quality.php:21
+msgid "Missing data"
+msgstr ""
+
+#: admin/views/quality.php:22
+msgid "Duplicates"
+msgstr ""
+
+#: admin/views/quality.php:23
+msgid "Tools"
+msgstr ""
+
+#: admin/views/quality.php:40
+msgid "Published listings per city and main category"
+msgstr ""
+
+#: admin/views/quality.php:41
+msgid "Empty and light cells are gaps - click one to discover businesses for it."
+msgstr ""
+
+#: admin/views/quality.php:44
+msgid "No published listings with a city yet."
+msgstr ""
+
+#: admin/views/quality.php:52
+msgid "Total"
+msgstr ""
+
+#: admin/views/quality.php:83
+msgid "Missing"
+msgstr ""
+
+#. translators: %d: number of listings
+#: admin/views/quality.php:94
+#, php-format
+msgid "%d listing"
+msgid_plural "%d listings"
+msgstr[0] ""
+msgstr[1] ""
+
+#: admin/views/quality.php:98
+msgid "Fill these automatically"
+msgstr ""
+
+#: admin/views/quality.php:102
+msgid "Nothing missing here."
+msgstr ""
+
+#: admin/views/quality.php:105
+msgid "Listing"
+msgstr ""
+
+#: admin/views/quality.php:105
+msgid "Status"
+msgstr ""
+
+#: admin/views/quality.php:105
+msgid "Profile"
+msgstr ""
+
+#: admin/views/quality.php:105
+msgid "Last check"
+msgstr ""
+
+#: admin/views/quality.php:120
+#: admin/views/review.php:117
+msgid "Enrich now"
+msgstr ""
+
+#: admin/views/quality.php:143
+msgid "No duplicates found"
+msgstr ""
+
+#: admin/views/quality.php:152
+msgid "Pick the listing to keep"
+msgstr ""
+
+#: admin/views/quality.php:168
+msgid "Open"
+msgstr ""
+
+#: admin/views/quality.php:174
+msgid "Merge into the selected listing? The others move to the trash (restorable)."
+msgstr ""
+
+#: admin/views/quality.php:174
+msgid "Merge into selected"
+msgstr ""
+
+#: admin/views/quality.php:175
+msgid "Different businesses"
+msgstr ""
+
+#: admin/views/quality.php:184
+msgid "Repair ListingPro data"
+msgstr ""
+
+#: admin/views/quality.php:185
+msgid "Listings not created through the theme's paid submission form can crash their own page on PHP 8, and their edit screen can show empty address/phone/website fields although the data is saved. This fixes every listing in one pass. Safe to run again; it never replaces real data."
+msgstr ""
+
+#: admin/views/quality.php:186
+msgid "Repair all listings"
+msgstr ""
+
+#: admin/views/review.php:17
+msgid "All sources"
+msgstr ""
+
+#: admin/views/review.php:19
+msgid "AI suggestions"
+msgstr ""
+
+#: admin/views/review.php:21
+msgid "Submitted by users"
+msgstr ""
+
+#. translators: %d: number of listings
+#: admin/views/review.php:28
+#, php-format
+msgid "%d listing waiting"
+msgid_plural "%d listings waiting"
+msgstr[0] ""
+msgstr[1] ""
+
+#: admin/views/review.php:48
+msgid "All caught up"
+msgstr ""
+
+#: admin/views/review.php:48
+msgid "No pending listings here."
+msgstr ""
+
+#: admin/views/review.php:59
+#: includes/class-lbi-admin.php:275
+msgid "Select all"
+msgstr ""
+
+#: admin/views/review.php:61
+msgid "Publish selected"
+msgstr ""
+
+#: admin/views/review.php:62
+msgid "Enrich selected"
+msgstr ""
+
+#: admin/views/review.php:63
+msgid "Move the selected listings to the trash?"
+msgstr ""
+
+#: admin/views/review.php:63
+msgid "Reject selected"
+msgstr ""
+
+#: admin/views/review.php:100
+msgid "AI suggestion - verify"
+msgstr ""
+
+#: admin/views/review.php:103
+msgid "Possible duplicate:"
+msgstr ""
+
+#. translators: %s: filled fields
+#: admin/views/review.php:110
+#, php-format
+msgid "enriched: %s"
+msgstr ""
+
+#: admin/views/review.php:116
+msgid "Publish"
+msgstr ""
+
+#: admin/views/review.php:118
+#: admin/views/schedules.php:47
+msgid "Edit"
+msgstr ""
+
+#: admin/views/review.php:119
+msgid "Reject"
+msgstr ""
+
+#: admin/views/review.php:119
+msgid "Move this listing to the trash?"
+msgstr ""
+
+#: admin/views/schedules.php:14
+msgid "Started"
+msgstr ""
+
+#: admin/views/schedules.php:15
+msgid "Error"
+msgstr ""
+
+#: admin/views/schedules.php:16
+msgid "Not due"
+msgstr ""
+
+#: admin/views/schedules.php:17
+msgid "Paused"
+msgstr ""
+
+#: admin/views/schedules.php:18
+msgid "Waiting"
+msgstr ""
+
+#: admin/views/schedules.php:24
+msgid "Scheduled searches"
+msgstr ""
+
+#. translators: %s: date and time
+#: admin/views/schedules.php:28
+#, php-format
+msgid "Next check: %s"
+msgstr ""
+
+#: admin/views/schedules.php:32
+msgid "A due schedule starts a background search. Clearly new businesses are added as Pending for the review queue; existing or unclear results are skipped. You get an e-mail summary."
+msgstr ""
+
+#: admin/views/schedules.php:34
+msgid "No schedules yet."
+msgstr ""
+
+#: admin/views/schedules.php:37
+msgid "Categories"
+msgstr ""
+
+#: admin/views/schedules.php:37
+msgid "Every"
+msgstr ""
+
+#: admin/views/schedules.php:37
+msgid "Last run"
+msgstr ""
+
+#: admin/views/schedules.php:41
+msgid "paused"
+msgstr ""
+
+#: admin/views/schedules.php:44
+msgid "day"
+msgstr ""
+
+#: admin/views/schedules.php:44
+msgid "week"
+msgstr ""
+
+#: admin/views/schedules.php:48
+msgid "Run now"
+msgstr ""
+
+#: admin/views/schedules.php:49
+msgid "Resume"
+msgstr ""
+
+#: admin/views/schedules.php:49
+msgid "Pause"
+msgstr ""
+
+#: admin/views/schedules.php:50
+msgid "Remove this schedule?"
+msgstr ""
+
+#: admin/views/schedules.php:64
+msgid "Edit schedule"
+msgstr ""
+
+#: admin/views/schedules.php:64
+msgid "New schedule"
+msgstr ""
+
+#: admin/views/schedules.php:74
+msgid "Results per category"
+msgstr ""
+
+#: admin/views/schedules.php:78
+msgid "Frequency"
+msgstr ""
+
+#: admin/views/schedules.php:80
+msgid "Weekly"
+msgstr ""
+
+#: admin/views/schedules.php:81
+msgid "Daily"
+msgstr ""
+
+#: admin/views/schedules.php:85
+msgid "Active"
+msgstr ""
+
+#: admin/views/schedules.php:88
+msgid "Categories (none = all)"
+msgstr ""
+
+#: admin/views/schedules.php:93
+msgid "Save schedule"
+msgstr ""
+
+#: admin/views/schedules.php:93
+msgid "Add schedule"
+msgstr ""
+
+#: admin/views/schedules.php:94
+#: includes/class-lbi-admin.php:114
+msgid "Cancel"
+msgstr ""
+
+#: admin/views/schedules.php:100
+msgid "Run log"
+msgstr ""
+
+#: admin/views/schedules.php:102
+msgid "Outcome"
+msgstr ""
+
+#: admin/views/schedules.php:102
+msgid "Details"
+msgstr ""
+
+#. translators: %d: number of searches
+#: admin/views/schedules.php:116
+#, php-format
+msgid "%d searches queued"
+msgstr ""
+
+#: admin/views/settings.php:12
+msgid "Google Cloud Console: create a project, link billing, enable \"Places API (New)\", create an API key and restrict it to that API (and set a daily quota)."
+msgstr ""
+
+#: admin/views/settings.php:13
+msgid "aistudio.google.com - \"Get API key\"."
+msgstr ""
+
+#: admin/views/settings.php:14
+msgid "console.anthropic.com - Settings - API keys."
+msgstr ""
+
+#: admin/views/settings.php:15
+msgid "platform.openai.com - API keys."
+msgstr ""
+
+#: admin/views/settings.php:24
+msgid "Google Places returns live, verified business data. The AI sources answer from model knowledge - useful for ideas, but always check address and phone. Keys are stored on this server only and are never shown again; leave a field empty to keep the saved key."
+msgstr ""
+
+#: admin/views/settings.php:39
+msgid "not working"
+msgstr ""
+
+#: admin/views/settings.php:41
+msgid "working"
+msgstr ""
+
+#: admin/views/settings.php:43
+msgid "not tested"
+msgstr ""
+
+#: admin/views/settings.php:48
+msgid "API key"
+msgstr ""
+
+#: admin/views/settings.php:49
+msgid "saved, leave empty to keep"
+msgstr ""
+
+#: admin/views/settings.php:51
+msgid "Remove the saved key"
+msgstr ""
+
+#: admin/views/settings.php:54
+msgid "Model"
+msgstr ""
+
+#: admin/views/settings.php:72
+msgid "Estimated cost per result (USD)"
+msgstr ""
+
+#. translators: %s: amount
+#: admin/views/settings.php:77
+#, php-format
+msgid "Spent so far (estimate): $%s"
+msgstr ""
+
+#: admin/views/settings.php:79
+msgid "reset"
+msgstr ""
+
+#: admin/views/settings.php:80
+msgid "Test again"
+msgstr ""
+
+#: admin/views/settings.php:92
+#: includes/class-lbi-admin.php:15
+msgid "Discover"
+msgstr ""
+
+#: admin/views/settings.php:93
+msgid "Google search phrase"
+msgstr ""
+
+#: admin/views/settings.php:95
+msgid "Must contain {category} and {city}."
+msgstr ""
+
+#: admin/views/settings.php:97
+msgid "Names used in searches"
+msgstr ""
+
+#: admin/views/settings.php:99
+msgid "Category and city names are translated to this language for the query (German finds most on Google in Germany)."
+msgstr ""
+
+#: admin/views/settings.php:101
+msgid "Results per search in background runs"
+msgstr ""
+
+#: admin/views/settings.php:103
+msgid "Leave out businesses Google marks as closed"
+msgstr ""
+
+#: admin/views/settings.php:104
+msgid "Create missing cities (locations) automatically"
+msgstr ""
+
+#: admin/views/settings.php:108
+msgid "Languages & notifications"
+msgstr ""
+
+#: admin/views/settings.php:110
+msgid "Write new listings in"
+msgstr ""
+
+#: admin/views/settings.php:112
+msgid "Default language of the site"
+msgstr ""
+
+#: admin/views/settings.php:115
+msgid "Ask KA Translate for the other languages as soon as an imported listing is published"
+msgstr ""
+
+#: admin/views/settings.php:116
+msgid "KA Translate is not active."
+msgstr ""
+
+#: admin/views/settings.php:118
+msgid "Polylang is not active - listings are written in one language."
+msgstr ""
+
+#: admin/views/settings.php:120
+msgid "E-mail a summary when a background run finishes"
+msgstr ""
+
+#: admin/views/settings.php:121
+msgid "Send to"
+msgstr ""
+
+#: admin/views/settings.php:126
+msgid "Enrichment defaults"
+msgstr ""
+
+#: admin/views/settings.php:130
+msgid "Social links"
+msgstr ""
+
+#: admin/views/settings.php:131
+#: includes/class-lbi-enrich.php:26
+#: includes/class-lbi-quality.php:18
+msgid "Photo"
+msgstr ""
+
+#: admin/views/settings.php:132
+#: includes/class-lbi-enrich.php:27
+msgid "Logo"
+msgstr ""
+
+#: admin/views/settings.php:133
+msgid "Opening hours"
+msgstr ""
+
+#: admin/views/settings.php:134
+#: includes/class-lbi-store.php:38
+msgid "Tagline"
+msgstr ""
+
+#: admin/views/settings.php:136
+msgid "Check the same listing again after (days)"
+msgstr ""
+
+#: admin/views/settings.php:141
+msgid "Photos"
+msgstr ""
+
+#: admin/views/settings.php:142
+msgid "Every photo is downloaded into the Media Library (never hotlinked) and can be shrunk with the server's own image library - no external service."
+msgstr ""
+
+#: admin/views/settings.php:143
+msgid "Resize and convert to WebP"
+msgstr ""
+
+#: admin/views/settings.php:145
+msgid "Max width (px)"
+msgstr ""
+
+#: admin/views/settings.php:146
+msgid "WebP quality"
+msgstr ""
+
+#: admin/views/settings.php:152
+msgid "New or changed keys are tested when you save."
+msgstr ""
+
+#: admin/views/settings.php:153
+msgid "Save settings"
+msgstr ""
+
+#: includes/class-lbi-admin.php:14
+msgid "Overview"
+msgstr ""
+
+#: includes/class-lbi-admin.php:17
+msgid "CSV import"
+msgstr ""
+
+#: includes/class-lbi-admin.php:18
+msgid "Enrich"
+msgstr ""
+
+#: includes/class-lbi-admin.php:19
+msgid "Quality"
+msgstr ""
+
+#: includes/class-lbi-admin.php:20
+msgid "Schedules"
+msgstr ""
+
+#: includes/class-lbi-admin.php:21
+msgid "Settings"
+msgstr ""
+
+#: includes/class-lbi-admin.php:75
+#: includes/class-lbi-admin.php:76
+#: includes/class-lbi-admin.php:81
+msgid "Bulk Importer"
+msgstr ""
+
+#: includes/class-lbi-admin.php:112
+msgid "Please confirm"
+msgstr ""
+
+#: includes/class-lbi-admin.php:113
+msgid "Yes, continue"
+msgstr ""
+
+#: includes/class-lbi-admin.php:115
+msgid "selected"
+msgstr ""
+
+#: includes/class-lbi-admin.php:116
+msgid "none selected = all categories"
+msgstr ""
+
+#: includes/class-lbi-admin.php:118
+msgid "runs in the background (more than 24 searches)"
+msgstr ""
+
+#: includes/class-lbi-admin.php:119
+msgid "ends in a preview"
+msgstr ""
+
+#: includes/class-lbi-admin.php:120
+msgid "about"
+msgstr ""
+
+#: includes/class-lbi-admin.php:121
+msgid "listings already in this category"
+msgstr ""
+
+#: includes/class-lbi-admin.php:123
+msgid "Finished - reloading…"
+msgstr ""
+
+#: includes/class-lbi-admin.php:124
+msgid "Pick at least one city."
+msgstr ""
+
+#: includes/class-lbi-admin.php:126
+msgid "new"
+msgstr ""
+
+#: includes/class-lbi-admin.php:128
+msgid "empty"
+msgstr ""
+
+#: includes/class-lbi-admin.php:130
+msgid "improved"
+msgstr ""
+
+#: includes/class-lbi-admin.php:131
+msgid "fields filled"
+msgstr ""
+
+#: includes/class-lbi-admin.php:132
+msgid "not reachable"
+msgstr ""
+
+#: includes/class-lbi-admin.php:144
+#: includes/class-lbi-plugin.php:118
+msgid "You do not have permission to do this."
+msgstr ""
+
+#: includes/class-lbi-admin.php:159
+msgid "Listing Bulk Importer"
+msgstr ""
+
+#: includes/class-lbi-admin.php:162
+msgid "Background run active"
+msgid_plural "Background runs active"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-lbi-admin.php:165
+msgid "Bulk Importer sections"
+msgstr ""
+
+#: includes/class-lbi-admin.php:199
+msgid "Developed by"
+msgstr ""
+
+#: includes/class-lbi-admin.php:216
+msgid "yes"
+msgstr ""
+
+#: includes/class-lbi-admin.php:216
+msgid "missing"
+msgstr ""
+
+#. translators: %s: human time difference
+#: includes/class-lbi-admin.php:227
+#, php-format
+msgid "%s ago"
+msgstr ""
+
+#: includes/class-lbi-admin.php:236
+msgid "Last background run"
+msgstr ""
+
+#. translators: %s: error
+#. translators: %s: error message
+#: includes/class-lbi-admin.php:243
+#: includes/class-lbi-jobs.php:280
+#, php-format
+msgid "Last error: %s"
+msgstr ""
+
+#: includes/class-lbi-admin.php:253
+msgid "Background search running"
+msgstr ""
+
+#: includes/class-lbi-admin.php:253
+msgid "Enrichment running"
+msgstr ""
+
+#: includes/class-lbi-admin.php:254
+msgid "Stop this run? Everything already added stays."
+msgstr ""
+
+#: includes/class-lbi-admin.php:254
+msgid "Stop"
+msgstr ""
+
+#: includes/class-lbi-admin.php:262
+msgid "Updates live. It also continues in the background when this page is closed; a summary is e-mailed at the end."
+msgstr ""
+
+#: includes/class-lbi-admin.php:275
+msgid "Filter categories…"
+msgstr ""
+
+#: includes/class-lbi-admin.php:275
+msgid "Filter categories"
+msgstr ""
+
+#: includes/class-lbi-admin.php:320
+msgid "The preview has expired. Please run the search or upload again."
+msgstr ""
+
+#. translators: %d: number of listings
+#: includes/class-lbi-admin.php:338
+#: includes/class-lbi-review.php:107
+#, php-format
+msgid "%d listing moved to the trash."
+msgid_plural "%d listings moved to the trash."
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-lbi-admin.php:347
+msgid "Stopped."
+msgstr ""
+
+#. translators: 1: listings checked, 2: crash fixes, 3: synced edit screens
+#: includes/class-lbi-admin.php:354
+#, php-format
+msgid "Checked %1$d listings: %2$d page-crash fixes, %3$d edit screens re-synced."
+msgstr ""
+
+#: includes/class-lbi-admin.php:365
+msgid "Settings saved."
+msgstr ""
+
+#: includes/class-lbi-admin.php:372
+msgid "Save a key first."
+msgstr ""
+
+#: includes/class-lbi-admin.php:384
+msgid "Counter reset."
+msgstr ""
+
+#: includes/class-lbi-batch.php:68
+#: includes/class-lbi-store.php:65
+msgid "Missing title"
+msgstr ""
+
+#: includes/class-lbi-batch.php:71
+msgid "Invalid e-mail"
+msgstr ""
+
+#: includes/class-lbi-batch.php:74
+msgid "Unknown category - the listing will have none"
+msgstr ""
+
+#: includes/class-lbi-batch.php:78
+msgid "New location - it will be created"
+msgstr ""
+
+#: includes/class-lbi-batch.php:79
+msgid "Unknown location - the listing will have none"
+msgstr ""
+
+#: includes/class-lbi-batch.php:82
+msgid "AI suggestion - check address and phone before publishing"
+msgstr ""
+
+#: includes/class-lbi-batch.php:150
+msgid "Target listing no longer exists"
+msgstr ""
+
+#: includes/class-lbi-csv.php:27
+msgid "No file was uploaded."
+msgstr ""
+
+#. translators: %d: megabytes
+#: includes/class-lbi-csv.php:31
+#, php-format
+msgid "The file is too large. Maximum size is %d MB."
+msgstr ""
+
+#: includes/class-lbi-csv.php:34
+msgid "Please upload a .csv file."
+msgstr ""
+
+#: includes/class-lbi-csv.php:41
+msgid "This does not look like a CSV file."
+msgstr ""
+
+#: includes/class-lbi-csv.php:50
+msgid "The CSV file has no data rows."
+msgstr ""
+
+#. translators: %d: maximum rows
+#: includes/class-lbi-csv.php:54
+#, php-format
+msgid "Too many rows. Please split the file into parts of %d rows or fewer."
+msgstr ""
+
+#: includes/class-lbi-csv.php:72
+msgid "Could not open the uploaded file."
+msgstr ""
+
+#: includes/class-lbi-csv.php:91
+msgid "Could not read a header row from the CSV."
+msgstr ""
+
+#. translators: %d: column number
+#: includes/class-lbi-csv.php:100
+#, php-format
+msgid "Column %d"
+msgstr ""
+
+#: includes/class-lbi-csv.php:184
+msgid "Please map one column to \"Title\"."
+msgstr ""
+
+#. translators: %s: file name
+#: includes/class-lbi-csv.php:209
+#, php-format
+msgid "Rows from %s."
+msgstr ""
+
+#: includes/class-lbi-csv.php:243
+msgid "Nothing to export - the preview has expired."
+msgstr ""
+
+#: includes/class-lbi-discover.php:22
+msgid "Please choose a data source that has a key saved."
+msgstr ""
+
+#: includes/class-lbi-discover.php:38
+msgid "Please pick at least one city."
+msgstr ""
+
+#: includes/class-lbi-discover.php:56
+msgid "No categories found for this language."
+msgstr ""
+
+#. translators: 1: first city, 2: number of further cities
+#: includes/class-lbi-discover.php:77
+#, php-format
+msgid "%1$s + %2$d more"
+msgstr ""
+
+#: includes/class-lbi-discover.php:79
+#: includes/class-lbi-enrich.php:162
+#: includes/class-lbi-schedules.php:68
+msgid "all categories"
+msgstr ""
+
+#. translators: %d: number of categories
+#: includes/class-lbi-discover.php:82
+#, php-format
+msgid "%d categories"
+msgstr ""
+
+#. translators: %d: maximum number of searches
+#: includes/class-lbi-discover.php:93
+#, php-format
+msgid "That would be more than %d searches. Please pick fewer cities or categories."
+msgstr ""
+
+#. translators: %s: error message
+#: includes/class-lbi-discover.php:124
+#, php-format
+msgid "Something went wrong while searching: %s"
+msgstr ""
+
+#: includes/class-lbi-discover.php:131
+msgid "No results. Try another city, category or source."
+msgstr ""
+
+#. translators: 1: number of results, 2: what was searched
+#: includes/class-lbi-discover.php:136
+#, php-format
+msgid "%1$d results for %2$s."
+msgstr ""
+
+#: includes/class-lbi-discover.php:138
+msgid "These come from the model's knowledge, not a live search - verify address and phone before publishing."
+msgstr ""
+
+#. translators: %s: error message
+#: includes/class-lbi-discover.php:142
+#, php-format
+msgid "Some searches failed: %s"
+msgstr ""
+
+#: includes/class-lbi-discover.php:158
+msgid "Everything found already exists on the site - nothing new to review."
+msgstr ""
+
+#: includes/class-lbi-discover.php:184
+msgid "Background search started. This page shows the progress; it also continues when you close it."
+msgstr ""
+
+#: includes/class-lbi-discover.php:192
+msgid "Category no longer exists."
+msgstr ""
+
+#: includes/class-lbi-discover.php:195
+msgid "The API key was removed while the job was running."
+msgstr ""
+
+#. translators: 1: city, 2: category, 3: new listings
+#: includes/class-lbi-discover.php:233
+#, php-format
+msgid "%1$s / %2$s: %3$d new"
+msgstr ""
+
+#: includes/class-lbi-enrich.php:25
+msgid "Social links & WhatsApp"
+msgstr ""
+
+#: includes/class-lbi-enrich.php:28
+msgid "Opening hours (Google)"
+msgstr ""
+
+#: includes/class-lbi-enrich.php:29
+msgid "Address & map position (Google)"
+msgstr ""
+
+#: includes/class-lbi-enrich.php:30
+msgid "Website (Google)"
+msgstr ""
+
+#: includes/class-lbi-enrich.php:31
+msgid "Tagline from the site description"
+msgstr ""
+
+#: includes/class-lbi-enrich.php:114
+msgid "Choose at least one thing to fill and one source."
+msgstr ""
+
+#: includes/class-lbi-enrich.php:128
+msgid "Nothing to do: no listing in this scope needs these fields (or all were checked recently)."
+msgstr ""
+
+#: includes/class-lbi-enrich.php:148
+msgid "Enrichment started in the background. Progress is shown below."
+msgstr ""
+
+#: includes/class-lbi-enrich.php:161
+msgid "all cities"
+msgstr ""
+
+#: includes/class-lbi-enrich.php:172
+msgid "Listing not found."
+msgstr ""
+
+#. translators: 1: listing title, 2: list of filled fields
+#: includes/class-lbi-enrich.php:177
+#, php-format
+msgid "%1$s: filled %2$s."
+msgstr ""
+
+#. translators: %s: listing title
+#: includes/class-lbi-enrich.php:179
+#, php-format
+msgid "%s: nothing new found."
+msgstr ""
+
+#: includes/class-lbi-enrich.php:215
+msgid "nothing new"
+msgstr ""
+
+#. translators: %d: HTTP status
+#: includes/class-lbi-enrich.php:402
+#, php-format
+msgid "Website answered HTTP %d."
+msgstr ""
+
+#: includes/class-lbi-enrich.php:406
+msgid "Website did not return a web page."
+msgstr ""
+
+#. translators: %s: error
+#: includes/class-lbi-enrich.php:425
+#, php-format
+msgid "Website not reachable: %s"
+msgstr ""
+
+#: includes/class-lbi-google.php:28
+#: includes/class-lbi-google.php:190
+msgid "No Google Maps key saved."
+msgstr ""
+
+#: includes/class-lbi-google.php:54
+msgid "Places API (New) is not enabled for this Google Cloud project. Enable \"Places API (New)\" in the API Library."
+msgstr ""
+
+#: includes/class-lbi-google.php:57
+msgid "Google rejected the key. Check that it is valid, billing is linked and the key restrictions allow \"Places API (New)\"."
+msgstr ""
+
+#: includes/class-lbi-google.php:60
+msgid "Google quota reached - wait or raise the quota in the Cloud Console."
+msgstr ""
+
+#. translators: 1: HTTP status, 2: message from Google
+#: includes/class-lbi-google.php:63
+#, php-format
+msgid "Google Places error (HTTP %1$d): %2$s"
+msgstr ""
+
+#: includes/class-lbi-google.php:72
+msgid "Places API (New) answered normally."
+msgstr ""
+
+#: includes/class-lbi-google.php:186
+msgid "Invalid Google photo reference"
+msgstr ""
+
+#: includes/class-lbi-google.php:198
+msgid "Google returned no photo."
+msgstr ""
+
+#: includes/class-lbi-jobs.php:44
+msgid "A background run of this kind is already in progress. Wait for it or cancel it first."
+msgstr ""
+
+#: includes/class-lbi-jobs.php:76
+#: includes/class-lbi-jobs.php:79
+msgid "Continued from version 3"
+msgstr ""
+
+#: includes/class-lbi-jobs.php:93
+msgid "Cancelled by an administrator."
+msgstr ""
+
+#. translators: %s: PHP error message
+#: includes/class-lbi-jobs.php:157
+#, php-format
+msgid "Stopped because of an unexpected error: %s"
+msgstr ""
+
+#. translators: 1: searches done, 2: total searches, 3: added, 4: skipped as existing/unclear, 5: empty searches, 6: failed searches
+#: includes/class-lbi-jobs.php:261
+#, php-format
+msgid "%1$d of %2$d searches: %3$d new listings added for review, %4$d skipped (existing or unclear), %5$d searches without results, %6$d failed."
+msgstr ""
+
+#. translators: 1: listings checked, 2: total, 3: listings improved, 4: fields filled, 5: unreachable websites
+#: includes/class-lbi-jobs.php:264
+#, php-format
+msgid "%1$d of %2$d listings checked: %3$d improved, %4$d fields filled, %5$d websites not reachable."
+msgstr ""
+
+#: includes/class-lbi-jobs.php:272
+msgid "Background search finished"
+msgstr ""
+
+#: includes/class-lbi-jobs.php:272
+msgid "Enrichment finished"
+msgstr ""
+
+#: includes/class-lbi-jobs.php:283
+msgid "Review the new listings here:"
+msgstr ""
+
+#: includes/class-lbi-media.php:38
+msgid "Empty photo value"
+msgstr ""
+
+#: includes/class-lbi-media.php:60
+msgid "Not a valid public URL"
+msgstr ""
+
+#: includes/class-lbi-media.php:68
+#: includes/class-lbi-media.php:107
+msgid "Image is larger than 10 MB"
+msgstr ""
+
+#: includes/class-lbi-media.php:73
+msgid "The file is not a recognizable image"
+msgstr ""
+
+#: includes/class-lbi-media.php:99
+msgid "Photo intake folder is missing"
+msgstr ""
+
+#: includes/class-lbi-media.php:104
+msgid "File not found in the photo folder"
+msgstr ""
+
+#: includes/class-lbi-media.php:111
+msgid "This is not a recognizable image file"
+msgstr ""
+
+#: includes/class-lbi-media.php:116
+msgid "Could not read the photo file"
+msgstr ""
+
+#: includes/class-lbi-plugin.php:60
+msgid "The plugin was deactivated."
+msgstr ""
+
+#: includes/class-lbi-providers.php:22
+msgid "Google Places API (New) - live business data"
+msgstr ""
+
+#: includes/class-lbi-providers.php:23
+msgid "Gemini (Google AI) - suggestions from model knowledge"
+msgstr ""
+
+#: includes/class-lbi-providers.php:24
+msgid "Claude (Anthropic) - suggestions from model knowledge"
+msgstr ""
+
+#: includes/class-lbi-providers.php:25
+msgid "ChatGPT (OpenAI) - suggestions from model knowledge"
+msgstr ""
+
+#. translators: 1: HTTP status, 2: provider message
+#: includes/class-lbi-providers.php:160
+#, php-format
+msgid "The key was rejected (HTTP %1$d). %2$s"
+msgstr ""
+
+#: includes/class-lbi-providers.php:163
+msgid "Rate limited - the account has hit a quota right now."
+msgstr ""
+
+#. translators: 1: HTTP status, 2: provider message
+#: includes/class-lbi-providers.php:166
+#, php-format
+msgid "Unexpected response (HTTP %1$d). %2$s"
+msgstr ""
+
+#: includes/class-lbi-providers.php:185
+msgid "The provider accepted the key."
+msgstr ""
+
+#: includes/class-lbi-providers.php:243
+msgid "Claude returned no usable reply."
+msgstr ""
+
+#: includes/class-lbi-providers.php:249
+msgid "Gemini returned no usable reply."
+msgstr ""
+
+#: includes/class-lbi-providers.php:256
+msgid "ChatGPT returned no usable reply."
+msgstr ""
+
+#: includes/class-lbi-providers.php:320
+msgid "The AI reply could not be read as a list of businesses. Try again or switch source."
+msgstr ""
+
+#: includes/class-lbi-quality.php:23
+msgid "Map position"
+msgstr ""
+
+#: includes/class-lbi-quality.php:312
+msgid "Marked as different businesses."
+msgstr ""
+
+#: includes/class-lbi-quality.php:324
+msgid "Choose which listing to keep."
+msgstr ""
+
+#: includes/class-lbi-quality.php:328
+msgid "One of these listings cannot be edited."
+msgstr ""
+
+#. translators: 1: number of merged listings, 2: kept listing title
+#: includes/class-lbi-quality.php:379
+#, php-format
+msgid "%1$d listing(s) merged into \"%2$s\" and moved to the trash."
+msgstr ""
+
+#: includes/class-lbi-review.php:57
+msgid "Submitted"
+msgstr ""
+
+#: includes/class-lbi-review.php:83
+msgid "Nothing selected."
+msgstr ""
+
+#. translators: %d: number of listings
+#: includes/class-lbi-review.php:95
+#, php-format
+msgid "%d listing published."
+msgid_plural "%d listings published."
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-lbi-review.php:97
+msgid "KA Translate creates the other language versions in the background."
+msgstr ""
+
+#: includes/class-lbi-review.php:110
+msgid "Review queue selection"
+msgstr ""
+
+#: includes/class-lbi-review.php:111
+msgid "Enrichment started - see the Enrich tab for progress."
+msgstr ""
+
+#: includes/class-lbi-review.php:114
+msgid "Choose an action."
+msgstr ""
+
+#: includes/class-lbi-schedules.php:120
+msgid "None of the saved categories exist anymore."
+msgstr ""
+
+#. translators: %d: number of schedules
+#: includes/class-lbi-schedules.php:125
+#, php-format
+msgid "%d scheduled searches"
+msgstr ""
+
+#. translators: 1: city, 2: categories
+#: includes/class-lbi-schedules.php:127
+#, php-format
+msgid "Schedule: %1$s / %2$s"
+msgstr ""
+
+#: includes/class-lbi-schedules.php:158
+msgid "No API key saved for this source."
+msgstr ""
+
+#: includes/class-lbi-schedules.php:169
+msgid "Another background search was still running - trying again in an hour."
+msgstr ""
+
+#: includes/class-lbi-schedules.php:209
+msgid "Please fill in a city and a data source."
+msgstr ""
+
+#: includes/class-lbi-schedules.php:232
+#: includes/class-lbi-schedules.php:269
+msgid "That schedule no longer exists."
+msgstr ""
+
+#: includes/class-lbi-schedules.php:238
+msgid "Schedule saved."
+msgstr ""
+
+#: includes/class-lbi-schedules.php:261
+msgid "Schedule removed."
+msgstr ""
+
+#: includes/class-lbi-schedules.php:278
+msgid "The schedule is running as a background search - progress below."
+msgstr ""
+
+#: includes/class-lbi-store.php:15
+msgid "Description"
+msgstr ""
+
+#: includes/class-lbi-store.php:17
+msgid "City / location"
+msgstr ""
+
+#: includes/class-lbi-store.php:18
+msgid "Tags (comma separated)"
+msgstr ""
+
+#: includes/class-lbi-store.php:26
+msgid "Latitude"
+msgstr ""
+
+#: includes/class-lbi-store.php:27
+msgid "Longitude"
+msgstr ""
+
+#: includes/class-lbi-store.php:29
+msgid "WhatsApp"
+msgstr ""
+
+#: includes/class-lbi-store.php:32
+msgid "Facebook"
+msgstr ""
+
+#: includes/class-lbi-store.php:33
+msgid "Instagram"
+msgstr ""
+
+#: includes/class-lbi-store.php:34
+msgid "LinkedIn"
+msgstr ""
+
+#: includes/class-lbi-store.php:35
+msgid "X / Twitter"
+msgstr ""
+
+#: includes/class-lbi-store.php:36
+msgid "YouTube channel"
+msgstr ""
+
+#: includes/class-lbi-store.php:37
+msgid "YouTube video"
+msgstr ""
+
+#: includes/class-lbi-store.php:44
+msgid "Photo (featured image)"
+msgstr ""
+
+#: includes/class-lbi-store.php:45
+msgid "Gallery photos (separate with |)"
+msgstr ""
+
+#: includes/class-lbi-store.php:172
+msgid "Google photo"
+msgstr ""

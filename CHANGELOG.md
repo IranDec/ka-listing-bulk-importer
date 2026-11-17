@@ -4,7 +4,31 @@ All notable changes to this plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2.8.1] - Current release
+## [4.0.0] - 2026-11-17
+
+Complete rebuild. All settings, keys, schedules, logs and the undo history are kept.
+
+### Added
+- New admin app under Listings -> Bulk Importer with tabs: Overview, Discover, Review, CSV import, Enrich, Quality, Schedules, Settings.
+- Google Places API (New): one request returns address, coordinates, phone, website, opening hours, rating and photo; photos are fetched only for imported rows; closed businesses are left out.
+- Polylang support: import language, categories/cities matched in that language, German names used in search queries, KA Translate asked for the other languages when an imported listing is published, enriched data copied to the translations.
+- Review queue for all pending listings with bulk publish / enrich / reject, duplicate warnings and completeness dots.
+- Enrichment from the business website (home + Impressum/contact page): e-mail, phone, social links, WhatsApp, photo, logo, tagline; plus Google: address, map position, opening hours, website. Only empty fields are filled.
+- Quality: coverage matrix city x main category (click a gap to discover it), missing-data lists, duplicate groups with merge or "different businesses".
+- Discover: city and category chips with existing-listing counts and "searched in the last 30 days" markers, live search/cost summary.
+- Opening hours imported into ListingPro's business hours; Google place id stored for exact duplicate detection.
+- CSV: semicolon/tab files, old Excel encoding, German and Persian header names, default city/category.
+
+### Changed
+- Background jobs run through one generic runner with live progress; schedules start a background job instead of one long request.
+- Duplicate detection uses place id, phone digits, website domain and name (bilingual titles split; name-only matches only within the same city); KA Translate copies are never duplicates.
+- API keys are no longer printed into the settings page.
+- Missing cities can be created automatically (setting).
+
+### Removed
+- The legacy Places API (cannot be enabled for new keys) and the stale duplicate plugin file in the repository root.
+
+## [2.8.1]
 
 ### Changed
 - Discover no longer hard-rejects a multi-city/"all categories" run once it passes 24 city/category combinations. It now runs the whole batch in one go (up to a 200-combination safety ceiling) and adds a note to the results if it exceeded the normal recommended batch size, instead of stopping the search entirely.

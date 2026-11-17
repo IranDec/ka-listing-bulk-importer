@@ -1,56 +1,67 @@
-# KA Schindler – Listing Bulk Importer
+# KA Schindler – Listing Bulk Importer 4
 
-A WordPress plugin for [ListingPro](https://wordpress.org/themes/listingpro/) that bulk-imports business listings — either from a CSV file, or auto-discovered by place + category using Google Maps, Claude, Gemini or ChatGPT.
+Grow and maintain a [ListingPro](https://themeforest.net/item/listingpro-multipurpose-directory-theme/19386460) business directory: discover businesses with **Google Places API (New)** or AI, import CSV files, approve new listings in a **review queue**, **enrich** existing listings from their own websites, find **gaps and duplicates**, and keep the **fa / de / en** versions in step with Polylang and KA Translate.
 
-Built by [Mohammad Babaei](https://adschi.com) for Klima- und Anlagentechnik Schindler GmbH.
+**Version:** 4.0.0 · **Requires:** WordPress 6.0+, PHP 7.4+ (tested on PHP 8.4), ListingPro · **Author:** [Mohammad Babaei](https://adschi.com)
 
-## Features
+---
 
-- **CSV bulk import** — map columns to core fields (title, description, category, location, tags), contact/meta fields (address, phone, WhatsApp, email, website, social links), and photos (featured + gallery), with a preview step before anything is written.
-- **Discover tool** — search for businesses by city + category using:
-  - **Google Maps** (Places API) — live, current results.
-  - **Claude** (Anthropic), **Gemini** (Google AI), **ChatGPT** (OpenAI) — AI-suggested results, clearly labeled as such since they answer from model knowledge rather than a live search.
-- **Live model lists** — once an AI provider's key is saved and verified, its current list of available models is fetched from the provider's own API, with a per-model cost estimate you control.
-- **Cost tracking** — set an estimated cost per result for each provider/model; the plugin keeps a running estimated spend counter per provider.
-- **Scheduled Discover searches** — save a recurring city + category + source combo (daily or weekly) via WP-Cron. New results are imported as "Pending" for review; duplicates and uncertain matches are always left for manual review.
-- **Preview & existing-row detection** — see exactly what will be created or skipped before committing, and export the preview batch as CSV.
-- **One-click undo** — every import is logged so it can be reverted as a whole.
-- **Per-user isolation** — uploads and previews are scoped per admin user so two people don't collide.
+## Screens (Listings → Bulk Importer)
 
-## Requirements
+| Tab | What it does |
+| --- | --- |
+| **Overview** | Listing count per language, review backlog, profile completeness (photo, phone, e-mail, website, address, map), data-source status and spend, recent imports with one-click undo. |
+| **Discover** | Pick cities (chips, with a free field for new places) and categories (chips show how many listings already exist and which were searched in the last 30 days), choose a source, run. Up to 24 searches end in a preview; bigger runs become a background job with live progress. |
+| **Review** | Every pending listing - imported or submitted - with source badge, completeness dots, duplicate warning. Publish, enrich or reject one by one or in bulk. |
+| **CSV import** | Upload (comma/semicolon, UTF-8 or old Excel encoding), automatic column mapping (English, German, Persian headers), default city/category, the same preview as Discover. |
+| **Enrich** | Fill empty fields of existing listings: e-mail, phone, social links, WhatsApp, photo, logo, tagline from the business website (home + Impressum/contact page), and address, map position, opening hours, website from Google. Never overwrites. |
+| **Quality** | Coverage matrix (city × main category, click a gap to discover it), lists of listings missing a field, duplicate groups with merge, ListingPro repair tool. |
+| **Schedules** | Recurring searches (daily/weekly). A due schedule starts a background search; new businesses arrive as Pending. |
+| **Settings** | Keys (never shown again after saving), models, cost estimates, search phrase, search language, languages, notifications, enrichment defaults, photo optimization. |
 
-- WordPress 5.8+
-- PHP 7.4+
-- The [ListingPro](https://wordpress.org/themes/listingpro/) theme (or any theme registering the `listing`, `listing-category`, `location`, and `list-tags` taxonomies/post type used by this plugin).
+## How it fits the multilingual site
 
-## Installation
+- New listings are written in the import language (Polylang default, Persian on hamsaye.de). Categories and cities are matched in that language - a German or English name or slug in a CSV is mapped to its translation.
+- Searches use the **German names** of the category and city ("آموزش موسیقی و هنر" in "هامبورگ" → "Musik- und Kunstunterricht persisch iranisch Hamburg").
+- When an imported listing is published, KA Translate is asked for the other language versions.
+- KA Translate copies (`_kt_gen`) are never counted, flagged as duplicates or enriched themselves; data filled into a source listing is copied to its translations.
 
-1. Upload the `ka-listing-bulk-importer` folder to `/wp-content/plugins/`, or install the plugin ZIP via **Plugins → Add New → Upload Plugin**.
-2. Activate the plugin through the **Plugins** menu in WordPress.
-3. Go to **Listings → Bulk Import Settings** to add API keys for the data sources you want to use (Google Maps and/or Claude/Gemini/ChatGPT).
-4. Use **Listings → Bulk Import** to import from a CSV, or **Listings → Discover** to search for businesses to import.
+## Data sources
 
-## Usage
+| Source | Data | Cost |
+| --- | --- | --- |
+| Google Places API (New) | live: name, address, coordinates, phone, website, opening hours, rating, photo | one Text Search request per search (+1 per imported photo) |
+| Gemini / Claude / ChatGPT | model knowledge, always flagged "verify before publishing" | one request per search |
+| Business website | e-mail, phone, socials, photo, logo, tagline | free |
 
-### CSV import
-1. Download the CSV template from the Bulk Import screen.
-2. Fill in your rows (title is the only required field).
-3. Upload the file, map its columns to plugin fields, preview the results, then import.
+Google setup: Cloud Console → create project → link billing → enable **Places API (New)** → create an API key restricted to that API, with a daily quota.
 
-### Discover
-1. Pick a data source, enter a city and category (or "all categories").
-2. Review results in the preview — AI-sourced rows are flagged so addresses/phone numbers can be double-checked before publishing.
-3. Import the rows you want, or set up a schedule so the same search runs automatically.
+## Safety
 
-### Settings
-Each data source has its own API key, live status check, and (for AI providers) a live model list and per-model cost estimate. See the in-app "How to get a key" instructions on the Settings screen for each provider.
+- Nothing is written before the preview; background runs and schedules only add clearly new businesses as **Pending**.
+- Duplicate check by Google place id, phone (last 9 digits), website domain and name (name only within the same city).
+- Undo per import (also trashes the KA Translate copies); merges move duplicates to the trash (restorable).
+- Nonces and capability checks on every action, keys admin-only and never printed, SSRF-safe requests (`wp_safe_remote_get`), uploaded images verified, CSV export protected against spreadsheet formulas.
+- Background jobs run in small ticks (cron + live polling) with a lock, so they never tie up the server.
 
-## Support
+## Updating from 3.x
 
-For issues or feature requests, contact the author: [adschi.com](https://adschi.com).
+Automatic. Keys, models, cost estimates, spend counters, schedules, the discover/photo/schedule logs and the undo history are kept. A running 3.x job continues. The Google key must work with **Places API (New)** - it is re-tested on the first save.
+
+## Code layout
+
+```
+ka-listing-bulk-importer/
+├── ka-listing-bulk-importer.php   bootstrap
+├── includes/   plugin, settings, lang, store, media, google, providers, batch, csv,
+│               jobs, discover, enrich, quality, review, schedules, admin
+├── admin/views/ dashboard, discover, review, import, photos (enrich), quality, schedules, settings
+├── assets/      admin.css, admin.js
+└── languages/   ka-listing-bulk-importer.pot
+```
 
 ## License
 
-Proprietary — licensed for use by Klima- und Anlagentechnik Schindler GmbH and its authorized distribution channel(s). Not for redistribution without permission from the author.
+Proprietary - licensed for use by Klima- und Anlagentechnik Schindler GmbH and its authorized distribution channel(s). Not for redistribution without permission from the author.
 
-See [CHANGELOG.md](CHANGELOG.md) for version history.
+See [CHANGELOG.md](CHANGELOG.md).
