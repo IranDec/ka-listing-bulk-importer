@@ -36,6 +36,7 @@ class KA_LBI_Plugin {
 		add_action( self::JOB_HOOK, array( 'KA_LBI_Jobs', 'cron_tick' ) );
 		add_action( 'transition_post_status', array( 'KA_LBI_Lang', 'on_publish' ), 20, 3 );
 		KA_LBI_Moderation::init();
+		KA_LBI_Category_Images::init();
 
 		if ( is_admin() ) {
 			KA_LBI_Admin::init();

@@ -16,8 +16,17 @@ msgstr "انصراف"
 msgid "Choose at least one reason or write a note."
 msgstr "دست‌کم یک دلیل انتخاب کنید یا یادداشتی بنویسید."
 
+msgid "Choose image"
+msgstr "انتخاب تصویر"
+
 msgid "Contact details are missing or not correct (phone, address or website)."
 msgstr "اطلاعات تماس ناقص یا نادرست است (تلفن، آدرس یا وب‌سایت)."
+
+msgid "Default image"
+msgstr "تصویر پیش‌فرض"
+
+msgid "Default image of the category"
+msgstr "تصویر پیش‌فرض دسته"
 
 msgid "Edit my listing"
 msgstr "ویرایش آگهی من"
@@ -73,6 +82,9 @@ msgstr "رد آگهی"
 msgid "Reject with a reason"
 msgstr "رد با ذکر دلیل"
 
+msgid "Remove"
+msgstr "حذف"
+
 msgid "Send back for changes"
 msgstr "برگرداندن برای اصلاح"
 
@@ -81,6 +93,9 @@ msgstr "ارسال دلایل با ایمیل به %s"
 
 msgid "Sent back on %1$s: %2$s"
 msgstr "برگردانده شده در %1$s: %2$s"
+
+msgid "Shown for listings of this category that have no photo of their own (sub-categories without an image use this one; without any, the ListingPro default image is used)."
+msgstr "برای آگهی‌های این دسته که عکس ندارند نمایش داده می‌شود (زیردسته‌های بدون تصویر از همین استفاده می‌کنند؛ اگر هیچ‌کدام تصویر نداشته باشد، تصویر پیش‌فرض ListingPro نمایش داده می‌شود)."
 
 msgid "Submitters cannot save links or web addresses in the description; their website goes into the Website field."
 msgstr "ثبت‌کنندگان نمی‌توانند در توضیحات لینک یا آدرس وب بنویسند؛ وب‌سایت در فیلد وب‌سایت ثبت می‌شود."
@@ -132,6 +147,9 @@ msgstr "بدون اطلاعات تماس"
 
 msgid "draft; the e-mail contains a link to edit the listing"
 msgstr "پیش‌نویس؛ ایمیل شامل لینک ویرایش آگهی است"
+
+msgid "from the parent category"
+msgstr "از دسته والد"
 
 msgid "links in the description"
 msgstr "لینک در توضیحات"

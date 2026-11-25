@@ -4,6 +4,11 @@ All notable changes to this plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 4.2.0 - 2026-11-25
+
+### Added
+- **Default image per category**: field "Default image" on the listing category screens (media library picker) and a column in the category list. A listing without photo and gallery shows the image of its category - or of the nearest parent category that has one - on the public site: lists, the listing page and social previews; without any, ListingPro's default image stays. Admin screens, the review checks, imports, cron and REST still see that the listing has no photo of its own (filter `post_thumbnail_id`, class `KA_LBI_Category_Images`).
+
 ## 4.1.0 - 2026-11-25
 
 ### Added
