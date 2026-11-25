@@ -102,9 +102,13 @@ class KA_LBI_Admin {
 	}
 
 	public static function assets() {
-		if ( ! self::current() ) {
-			return;
+		if ( self::current() ) {
+			self::enqueue();
 		}
+	}
+
+	/** Styles, script and texts of the plugin's screens (also used on the listing list and edit screen). */
+	public static function enqueue() {
 		wp_enqueue_style( 'ka-lbi-admin', KA_LBI_URL . 'assets/admin.css', array(), KA_LBI_VERSION );
 		wp_enqueue_script( 'ka-lbi-admin', KA_LBI_URL . 'assets/admin.js', array(), KA_LBI_VERSION, true );
 		wp_localize_script( 'ka-lbi-admin', 'kaLbi', array(

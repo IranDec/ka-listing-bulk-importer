@@ -170,38 +170,7 @@ $ka_sources = array(
 				<?php endwhile; wp_reset_postdata(); ?>
 			</div>
 		</form>
-		<template id="ka-lbi-reject-tpl">
-			<div class="ka-lbi-modal">
-				<form class="ka-lbi-modal-box ka-lbi-reject" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" role="dialog" aria-modal="true" aria-labelledby="ka-lbi-rt">
-					<?php wp_nonce_field( KA_LBI_Plugin::NONCE ); ?>
-					<input type="hidden" name="action" value="ka_lbi_moderate">
-					<input type="hidden" name="post" value="">
-					<input type="hidden" name="f_source" value="<?php echo esc_attr( $ka_source ); ?>">
-					<input type="hidden" name="f_location" value="<?php echo (int) $ka_location; ?>">
-					<input type="hidden" name="f_paged" value="<?php echo (int) $ka_paged; ?>">
-					<h3 id="ka-lbi-rt"><?php esc_html_e( 'Reject listing', 'ka-listing-bulk-importer' ); ?></h3>
-					<p class="ka-lbi-muted" data-title></p>
-					<fieldset class="ka-lbi-reasons">
-						<legend><?php esc_html_e( 'Reasons (those found by the automatic check are already ticked)', 'ka-listing-bulk-importer' ); ?></legend>
-						<?php foreach ( KA_LBI_Moderation::reasons() as $ka_k => $ka_text ) : ?>
-							<label><input type="checkbox" name="reasons[]" value="<?php echo esc_attr( $ka_k ); ?>"> <?php echo esc_html( $ka_text ); ?></label>
-						<?php endforeach; ?>
-					</fieldset>
-					<label class="ka-lbi-block"><?php esc_html_e( 'Note to the submitter (optional)', 'ka-listing-bulk-importer' ); ?>
-						<textarea name="note" rows="3" dir="auto"></textarea>
-					</label>
-					<div class="ka-lbi-modes">
-						<label><input type="radio" name="mode" value="changes" checked> <strong><?php esc_html_e( 'Send back for changes', 'ka-listing-bulk-importer' ); ?></strong> <span class="ka-lbi-muted"><?php esc_html_e( 'draft; the e-mail contains a link to edit the listing', 'ka-listing-bulk-importer' ); ?></span></label>
-						<label><input type="radio" name="mode" value="final"> <strong><?php esc_html_e( 'Reject completely', 'ka-listing-bulk-importer' ); ?></strong> <span class="ka-lbi-muted"><?php esc_html_e( 'moved to the trash', 'ka-listing-bulk-importer' ); ?></span></label>
-					</div>
-					<label class="ka-lbi-notify"><input type="checkbox" name="notify" value="1" checked> <span data-notify-text></span></label>
-					<div class="ka-lbi-modal-act">
-						<button type="button" class="button" data-no><?php esc_html_e( 'Cancel', 'ka-listing-bulk-importer' ); ?></button>
-						<button type="submit" class="button button-primary"><?php esc_html_e( 'Reject', 'ka-listing-bulk-importer' ); ?></button>
-					</div>
-				</form>
-			</div>
-		</template>
+		<?php KA_LBI_Moderation::dialog( array( 'f_source' => $ka_source, 'f_location' => $ka_location, 'f_paged' => $ka_paged ) ); ?>
 		<?php
 		$ka_pages = (int) $ka_q->max_num_pages;
 		if ( $ka_pages > 1 ) {

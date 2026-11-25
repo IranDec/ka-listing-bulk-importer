@@ -217,7 +217,8 @@
 
 	/* ------------------------------------------------------------ reject with reasons (review queue) */
 	$$('[data-ka-lbi-reject]').forEach(function (b) {
-		b.addEventListener('click', function () {
+		b.addEventListener('click', function (e) {
+			e.preventDefault();
 			var tpl = document.getElementById('ka-lbi-reject-tpl');
 			if (!tpl) { return; }
 			var last = document.activeElement;

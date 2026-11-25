@@ -4,6 +4,14 @@ All notable changes to this plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 4.3.0 - 2026-11-25
+
+### Added
+- Moderation where listings are handled every day, not only in the review queue:
+  - **Listings list**: column "Review" (submitter e-mail, automatic checks, last time sent back) and the row actions **Publish** and **Reject with a reason…** for pending and draft listings;
+  - **listing edit screen**: box "Review" in the sidebar with submitter, checks, history and the buttons **Publish** / **Reject with a reason…**.
+- The reject dialog (`KA_LBI_Moderation::dialog()`) and the new publish action (`admin-post.php?action=ka_lbi_approve`) return to the screen they were used on; after "reject completely" from the edit screen the Listings list opens.
+
 ## 4.2.0 - 2026-11-25
 
 ### Added

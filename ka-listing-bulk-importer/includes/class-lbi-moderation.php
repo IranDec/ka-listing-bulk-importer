@@ -26,6 +26,240 @@ class KA_LBI_Moderation {
 	public static function init() {
 		add_filter( 'wp_insert_post_data', array( __CLASS__, 'strip_links' ), 20, 2 );
 		add_action( 'wp_footer', array( __CLASS__, 'form_script' ), 50 );
+		if ( is_admin() ) {
+			$type = KA_LBI_Plugin::POST_TYPE;
+			add_action( 'admin_post_ka_lbi_approve', array( __CLASS__, 'handle_approve' ) );
+			add_filter( 'manage_' . $type . '_posts_columns', array( __CLASS__, 'list_column' ), 20 );
+			add_action( 'manage_' . $type . '_posts_custom_column', array( __CLASS__, 'list_column_value' ), 10, 2 );
+			add_filter( 'post_row_actions', array( __CLASS__, 'row_actions' ), 20, 2 );
+			add_action( 'add_meta_boxes_' . $type, array( __CLASS__, 'meta_box' ) );
+			add_action( 'admin_enqueue_scripts', array( __CLASS__, 'screen_assets' ) );
+			add_action( 'admin_footer', array( __CLASS__, 'screen_dialog' ) );
+			add_action( 'admin_notices', array( __CLASS__, 'screen_notice' ) );
+		}
+	}
+
+	/** The Listings list or a listing's edit screen. */
+	private static function listing_screen() {
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		return $screen && KA_LBI_Plugin::POST_TYPE === $screen->post_type && in_array( $screen->base, array( 'edit', 'post' ), true )
+			&& current_user_can( KA_LBI_Plugin::CAP );
+	}
+
+	/** Statuses whose listings still wait for a decision. */
+	private static function undecided( $post_id ) {
+		return in_array( get_post_status( $post_id ), array( 'pending', 'draft' ), true );
+	}
+
+	public static function screen_assets() {
+		if ( self::listing_screen() ) {
+			KA_LBI_Admin::enqueue();
+		}
+	}
+
+	/** Reject dialog (template, filled by admin.js); $hidden are extra form fields (e.g. the queue filters). */
+	public static function dialog( array $hidden = array() ) {
+		?>
+		<template id="ka-lbi-reject-tpl">
+			<div class="ka-lbi-modal">
+				<form class="ka-lbi-modal-box ka-lbi-reject" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" role="dialog" aria-modal="true" aria-labelledby="ka-lbi-rt">
+					<?php wp_nonce_field( KA_LBI_Plugin::NONCE ); ?>
+					<input type="hidden" name="action" value="ka_lbi_moderate">
+					<input type="hidden" name="post" value="">
+					<?php foreach ( $hidden as $k => $v ) : ?>
+						<input type="hidden" name="<?php echo esc_attr( $k ); ?>" value="<?php echo esc_attr( $v ); ?>">
+					<?php endforeach; ?>
+					<h3 id="ka-lbi-rt"><?php esc_html_e( 'Reject listing', 'ka-listing-bulk-importer' ); ?></h3>
+					<p class="ka-lbi-muted" data-title></p>
+					<fieldset class="ka-lbi-reasons">
+						<legend><?php esc_html_e( 'Reasons (those found by the automatic check are already ticked)', 'ka-listing-bulk-importer' ); ?></legend>
+						<?php foreach ( self::reasons() as $k => $text ) : ?>
+							<label><input type="checkbox" name="reasons[]" value="<?php echo esc_attr( $k ); ?>"> <?php echo esc_html( $text ); ?></label>
+						<?php endforeach; ?>
+					</fieldset>
+					<label class="ka-lbi-block"><?php esc_html_e( 'Note to the submitter (optional)', 'ka-listing-bulk-importer' ); ?>
+						<textarea name="note" rows="3" dir="auto"></textarea>
+					</label>
+					<div class="ka-lbi-modes">
+						<label><input type="radio" name="mode" value="changes" checked> <strong><?php esc_html_e( 'Send back for changes', 'ka-listing-bulk-importer' ); ?></strong> <span class="ka-lbi-muted"><?php esc_html_e( 'draft; the e-mail contains a link to edit the listing', 'ka-listing-bulk-importer' ); ?></span></label>
+						<label><input type="radio" name="mode" value="final"> <strong><?php esc_html_e( 'Reject completely', 'ka-listing-bulk-importer' ); ?></strong> <span class="ka-lbi-muted"><?php esc_html_e( 'moved to the trash', 'ka-listing-bulk-importer' ); ?></span></label>
+					</div>
+					<label class="ka-lbi-notify"><input type="checkbox" name="notify" value="1" checked> <span data-notify-text></span></label>
+					<div class="ka-lbi-modal-act">
+						<button type="button" class="button" data-no><?php esc_html_e( 'Cancel', 'ka-listing-bulk-importer' ); ?></button>
+						<button type="submit" class="button button-primary"><?php esc_html_e( 'Reject', 'ka-listing-bulk-importer' ); ?></button>
+					</div>
+				</form>
+			</div>
+		</template>
+		<?php
+	}
+
+	/** On the listing screens: the dialog returns to the page it was opened on. */
+	public static function screen_dialog() {
+		if ( self::listing_screen() ) {
+			self::dialog( array( 'back' => esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) ) ) );
+		}
+	}
+
+	/** Messages of moderation actions on the listing screens. */
+	public static function screen_notice() {
+		if ( ! self::listing_screen() ) {
+			return;
+		}
+		$key = 'ka_lbi_notice_' . get_current_user_id();
+		$n   = get_transient( $key );
+		if ( ! is_array( $n ) ) {
+			return;
+		}
+		delete_transient( $key );
+		$type = in_array( $n['type'], array( 'success', 'error', 'info', 'warning' ), true ) ? $n['type'] : 'info';
+		echo '<div class="notice notice-' . esc_attr( $type ) . ' is-dismissible"><p>' . esc_html( $n['text'] ) . '</p></div>';
+	}
+
+	/** Attributes of a "reject" control for admin.js. */
+	public static function reject_attrs( $post_id ) {
+		$user = self::submitter( $post_id );
+		return 'data-ka-lbi-reject="' . (int) $post_id . '" data-title="' . esc_attr( get_the_title( $post_id ) ) . '" data-issues="' . esc_attr( implode( ',', self::issues( $post_id ) ) ) . '" data-submitter="' . ( $user ? esc_attr( $user->display_name . ' <' . $user->user_email . '>' ) : '' ) . '"';
+	}
+
+	public static function approve_url( $post_id, $back = '' ) {
+		return wp_nonce_url( add_query_arg( array( 'action' => 'ka_lbi_approve', 'post' => (int) $post_id, 'back' => rawurlencode( $back ) ), admin_url( 'admin-post.php' ) ), KA_LBI_Plugin::NONCE );
+	}
+
+	/** Back to the page the action came from (listing screens), or to the review queue. */
+	private static function done( $message, $type, array $args = array(), $trashed = false ) {
+		$back = isset( $_REQUEST['back'] ) ? rawurldecode( wp_unslash( $_REQUEST['back'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput -- checked in guard(), validated below
+		$back = $back ? wp_validate_redirect( $back, '' ) : '';
+		if ( '' === $back ) {
+			KA_LBI_Plugin::back( 'ka-lbi-review', $message, $type, $args );
+		}
+		if ( $trashed && false !== strpos( $back, 'post.php' ) ) {
+			$back = admin_url( 'edit.php?post_type=' . KA_LBI_Plugin::POST_TYPE );
+		}
+		set_transient( 'ka_lbi_notice_' . get_current_user_id(), array( 'type' => $type, 'text' => $message ), 120 );
+		wp_safe_redirect( $back );
+		exit;
+	}
+
+	/** admin-post.php?action=ka_lbi_approve&post= - publish one listing (ListingPro sends its approval e-mail). */
+	public static function handle_approve() {
+		KA_LBI_Plugin::guard();
+		$id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
+		if ( ! $id || KA_LBI_Plugin::POST_TYPE !== get_post_type( $id ) || ! current_user_can( 'publish_post', $id ) ) {
+			self::done( __( 'Nothing selected.', 'ka-listing-bulk-importer' ), 'info' );
+		}
+		KA_LBI_Store::ensure_plan_meta_placeholder( $id );
+		$r = wp_update_post( array( 'ID' => $id, 'post_status' => 'publish' ), true );
+		KA_LBI_Quality::forget();
+		self::done( is_wp_error( $r ) ? $r->get_error_message() : __( 'The listing is published.', 'ka-listing-bulk-importer' ), is_wp_error( $r ) ? 'error' : 'success' );
+	}
+
+	/** Listings list: column "Review" with the submitter and the checks of undecided listings. */
+	public static function list_column( $columns ) {
+		$out = array();
+		foreach ( $columns as $k => $v ) {
+			$out[ $k ] = $v;
+			if ( 'title' === $k ) {
+				$out['ka_lbi_review'] = __( 'Review', 'ka-listing-bulk-importer' );
+			}
+		}
+		return $out;
+	}
+
+	public static function list_column_value( $column, $post_id ) {
+		if ( 'ka_lbi_review' !== $column ) {
+			return;
+		}
+		$log = self::log( $post_id );
+		if ( ! self::undecided( $post_id ) ) {
+			echo $log ? '<span class="ka-lbi-muted">' . esc_html( sprintf( /* translators: %d: number of times */ __( 'sent back (%d)', 'ka-listing-bulk-importer' ), count( $log ) ) ) . '</span>' : '<span class="ka-lbi-muted">—</span>';
+			return;
+		}
+		$user = self::submitter( $post_id );
+		if ( $user ) {
+			echo '<div><a href="mailto:' . esc_attr( $user->user_email ) . '">' . esc_html( $user->user_email ) . '</a></div>';
+		}
+		$labels = self::issue_labels();
+		$issues = self::issues( $post_id );
+		echo '<div class="ka-lbi-qflags">';
+		foreach ( $issues as $i ) {
+			echo KA_LBI_Admin::pill( $labels[ $i ], 'bad' ); // phpcs:ignore WordPress.Security.EscapeOutput
+		}
+		if ( ! $issues ) {
+			echo KA_LBI_Admin::pill( __( 'no problems found', 'ka-listing-bulk-importer' ), 'ok' ); // phpcs:ignore WordPress.Security.EscapeOutput
+		}
+		echo '</div>';
+		if ( $log ) {
+			$last = end( $log );
+			/* translators: %s: date */
+			echo '<div class="ka-lbi-muted">' . esc_html( sprintf( __( 'sent back on %s', 'ka-listing-bulk-importer' ), wp_date( get_option( 'date_format' ), $last['time'] ) ) ) . '</div>';
+		}
+	}
+
+	/** Listings list: "Publish" and "Reject…" for undecided listings. */
+	public static function row_actions( $actions, $post ) {
+		if ( KA_LBI_Plugin::POST_TYPE !== $post->post_type || ! self::undecided( $post->ID ) || ! current_user_can( KA_LBI_Plugin::CAP ) ) {
+			return $actions;
+		}
+		$back = wp_unslash( $_SERVER['REQUEST_URI'] ?? '' );
+		return array_merge( array(
+			'ka_lbi_approve' => '<a href="' . esc_url( self::approve_url( $post->ID, $back ) ) . '" style="color:#008a20;font-weight:600">' . esc_html__( 'Publish', 'ka-listing-bulk-importer' ) . '</a>',
+			'ka_lbi_reject'  => '<a href="#" ' . self::reject_attrs( $post->ID ) . ' style="color:#b32d2e;font-weight:600">' . esc_html__( 'Reject with a reason…', 'ka-listing-bulk-importer' ) . '</a>',
+		), $actions );
+	}
+
+	/** Edit screen: box "Review" with submitter, checks, history and the two decisions. */
+	public static function meta_box() {
+		if ( current_user_can( KA_LBI_Plugin::CAP ) ) {
+			add_meta_box( 'ka-lbi-review', __( 'Review', 'ka-listing-bulk-importer' ), array( __CLASS__, 'render_meta_box' ), KA_LBI_Plugin::POST_TYPE, 'side', 'high' );
+		}
+	}
+
+	public static function render_meta_box( $post ) {
+		$user   = self::submitter( $post->ID );
+		$labels = self::issue_labels();
+		$issues = self::issues( $post->ID );
+		$log    = self::log( $post->ID );
+		$rs     = self::reasons();
+		echo '<div class="ka-lbi-box">';
+		if ( $user ) {
+			echo '<p><span class="dashicons dashicons-admin-users"></span> <a href="' . esc_url( get_edit_user_link( $user->ID ) ) . '"><strong>' . esc_html( $user->display_name ) . '</strong></a><br>';
+			echo '<a href="mailto:' . esc_attr( $user->user_email ) . '">' . esc_html( $user->user_email ) . '</a><br>';
+			/* translators: 1: time since registration, 2: number of listings */
+			echo '<span class="ka-lbi-muted">' . esc_html( sprintf( __( 'registered %1$s · %2$d listings', 'ka-listing-bulk-importer' ), KA_LBI_Admin::ago( $user->user_registered ), self::count_listings( $user->ID ) ) ) . '</span></p>';
+		} else {
+			echo '<p class="ka-lbi-muted">' . esc_html__( 'Not submitted by a registered user (import or editor).', 'ka-listing-bulk-importer' ) . '</p>';
+		}
+		echo '<div class="ka-lbi-qflags">';
+		foreach ( $issues as $i ) {
+			echo KA_LBI_Admin::pill( $labels[ $i ], 'bad' ); // phpcs:ignore WordPress.Security.EscapeOutput
+		}
+		if ( ! $issues ) {
+			echo KA_LBI_Admin::pill( __( 'no problems found', 'ka-listing-bulk-importer' ), 'ok' ); // phpcs:ignore WordPress.Security.EscapeOutput
+		}
+		echo '</div>';
+		if ( $log ) {
+			echo '<p><strong>' . esc_html__( 'History', 'ka-listing-bulk-importer' ) . '</strong></p><ul class="ka-lbi-history">';
+			foreach ( array_reverse( $log ) as $e ) {
+				$who = get_userdata( (int) $e['by'] );
+				echo '<li>' . esc_html( wp_date( get_option( 'date_format' ) . ' H:i', $e['time'] ) . ' · ' . ( 'final' === $e['mode'] ? __( 'rejected', 'ka-listing-bulk-importer' ) : __( 'sent back', 'ka-listing-bulk-importer' ) ) . ( $who ? ' · ' . $who->display_name : '' ) );
+				echo '<br><span class="ka-lbi-muted">' . esc_html( implode( ' · ', array_map( function ( $r ) use ( $rs ) {
+					return isset( $rs[ $r ] ) ? wp_trim_words( $rs[ $r ], 6, '…' ) : $r;
+				}, $e['reasons'] ) ) . ( '' !== $e['note'] ? ' · "' . $e['note'] . '"' : '' ) ) . '</span></li>';
+			}
+			echo '</ul>';
+		}
+		if ( self::undecided( $post->ID ) ) {
+			$back = wp_unslash( $_SERVER['REQUEST_URI'] ?? '' );
+			echo '<div class="ka-lbi-box-act">';
+			if ( current_user_can( 'publish_post', $post->ID ) ) {
+				echo '<a class="button button-primary" href="' . esc_url( self::approve_url( $post->ID, $back ) ) . '">' . esc_html__( 'Publish', 'ka-listing-bulk-importer' ) . '</a> ';
+			}
+			echo '<button type="button" class="button ka-lbi-danger" ' . self::reject_attrs( $post->ID ) . '>' . esc_html__( 'Reject with a reason…', 'ka-listing-bulk-importer' ) . '</button>'; // phpcs:ignore WordPress.Security.EscapeOutput
+			echo '</div><p class="description">' . esc_html__( 'Save your own changes first - these buttons leave the page.', 'ka-listing-bulk-importer' ) . '</p>';
+		}
+		echo '</div>';
 	}
 
 	/** Reasons an admin can give (key => text shown to the admin and in the e-mail). */
@@ -132,21 +366,21 @@ class KA_LBI_Moderation {
 			}
 		}
 		if ( ! $id || KA_LBI_Plugin::POST_TYPE !== get_post_type( $id ) || ! current_user_can( 'edit_post', $id ) ) {
-			KA_LBI_Plugin::back( 'ka-lbi-review', __( 'Nothing selected.', 'ka-listing-bulk-importer' ), 'info', $args );
+			self::done( __( 'Nothing selected.', 'ka-listing-bulk-importer' ), 'info', $args );
 		}
 		if ( ! $reasons && '' === $note ) {
-			KA_LBI_Plugin::back( 'ka-lbi-review', __( 'Choose at least one reason or write a note.', 'ka-listing-bulk-importer' ), 'error', $args );
+			self::done( __( 'Choose at least one reason or write a note.', 'ka-listing-bulk-importer' ), 'error', $args );
 		}
 		$result = self::reject( $id, $reasons, $note, $mode, $notify );
 		if ( is_wp_error( $result ) ) {
-			KA_LBI_Plugin::back( 'ka-lbi-review', $result->get_error_message(), 'error', $args );
+			self::done( $result->get_error_message(), 'error', $args );
 		}
 		$msg = 'final' === $mode ? __( 'The listing was rejected and moved to the trash.', 'ka-listing-bulk-importer' ) : __( 'The listing was sent back to the submitter for changes (draft).', 'ka-listing-bulk-importer' );
 		if ( $notify ) {
 			$msg .= ' ' . ( 'sent' === $result ? __( 'The submitter was informed by e-mail.', 'ka-listing-bulk-importer' ) : __( 'The e-mail could not be sent.', 'ka-listing-bulk-importer' ) );
 		}
 		KA_LBI_Quality::forget();
-		KA_LBI_Plugin::back( 'ka-lbi-review', $msg, 'sent' === $result || ! $notify ? 'success' : 'warning', $args );
+		self::done( $msg, 'sent' === $result || ! $notify ? 'success' : 'warning', $args, 'final' === $mode );
 	}
 
 	/**

@@ -2,7 +2,7 @@
 
 Grow and maintain a [ListingPro](https://themeforest.net/item/listingpro-multipurpose-directory-theme/19386460) business directory: discover businesses with **Google Places API (New)** or AI, import CSV files, approve new listings in a **review queue**, **enrich** existing listings from their own websites, find **gaps and duplicates**, and keep the **fa / de / en** versions in step with Polylang and KA Translate.
 
-**Version:** 4.2.0 · **Requires:** WordPress 6.0+, PHP 7.4+ (tested on PHP 8.4), ListingPro · **Author:** [Mohammad Babaei](https://adschi.com)
+**Version:** 4.3.0 · **Requires:** WordPress 6.0+, PHP 7.4+ (tested on PHP 8.4), ListingPro · **Author:** [Mohammad Babaei](https://adschi.com)
 
 ---
 

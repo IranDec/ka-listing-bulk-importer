@@ -37,6 +37,9 @@ msgstr "همسایه فقط کسب‌وکارها و خدمات داخل آلم�
 msgid "Hello %s,"
 msgstr "%s عزیز، سلام"
 
+msgid "History"
+msgstr "تاریخچه"
+
 msgid "Kind regards, the %s team"
 msgstr "با احترام، تیم %s"
 
@@ -55,6 +58,9 @@ msgstr "بدون لینک در توضیحات"
 msgid "No photo or logo was added."
 msgstr "هیچ عکس یا لوگویی اضافه نشده است."
 
+msgid "Not submitted by a registered user (import or editor)."
+msgstr "توسط کاربر ثبت‌نام‌شده ارسال نشده است (ایمپورت یا ویرایشگر)."
+
 msgid "Note to the submitter (optional)"
 msgstr "یادداشت برای ثبت‌کننده (اختیاری)"
 
@@ -66,6 +72,9 @@ msgstr "دلیل دیگر (یادداشت زیر را ببینید)."
 
 msgid "Please do not add links or web addresses to the description - enter your website in the \"Website\" field."
 msgstr "لطفاً در توضیحات لینک یا آدرس وب‌سایت ننویسید - وب‌سایت خود را در فیلد «وب‌سایت» وارد کنید."
+
+msgid "Publish"
+msgstr "انتشار"
 
 msgid "Reasons (those found by the automatic check are already ticked)"
 msgstr "دلایل (مواردی که بررسی خودکار پیدا کرده از قبل انتخاب شده‌اند)"
@@ -82,8 +91,17 @@ msgstr "رد آگهی"
 msgid "Reject with a reason"
 msgstr "رد با ذکر دلیل"
 
+msgid "Reject with a reason…"
+msgstr "رد با ذکر دلیل…"
+
 msgid "Remove"
 msgstr "حذف"
+
+msgid "Review"
+msgstr "بررسی"
+
+msgid "Save your own changes first - these buttons leave the page."
+msgstr "اگر تغییری داده‌اید، اول ذخیره کنید - این دکمه‌ها از صفحه خارج می‌شوند."
 
 msgid "Send back for changes"
 msgstr "برگرداندن برای اصلاح"
@@ -117,6 +135,9 @@ msgstr "ایمیل ارسال نشد."
 
 msgid "The listing could not be moved to the trash."
 msgstr "آگهی به زباله‌دان منتقل نشد."
+
+msgid "The listing is published."
+msgstr "آگهی منتشر شد."
 
 msgid "The listing was rejected and moved to the trash."
 msgstr "آگهی رد شد و به زباله‌دان منتقل شد."
@@ -160,8 +181,23 @@ msgstr "انتقال به زباله‌دان"
 msgid "no photo"
 msgstr "بدون عکس"
 
+msgid "no problems found"
+msgstr "مشکلی پیدا نشد"
+
 msgid "registered %1$s · %2$d listings"
 msgstr "ثبت‌نام %1$s · %2$d آگهی"
+
+msgid "rejected"
+msgstr "رد شد"
+
+msgid "sent back"
+msgstr "برگردانده شد"
+
+msgid "sent back (%d)"
+msgstr "برگردانده شده (%d بار)"
+
+msgid "sent back on %s"
+msgstr "برگردانده شده در %s"
 
 msgid "short description"
 msgstr "توضیحات کوتاه"

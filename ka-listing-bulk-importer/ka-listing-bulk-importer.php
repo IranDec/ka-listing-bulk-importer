@@ -3,7 +3,7 @@
  * Plugin Name:       KA Schindler - Listing Bulk Importer
  * Plugin URI:        https://adschi.com
  * Description:       Grow a ListingPro directory: discover businesses with Google Places (New) or AI, import CSV files, review new listings in one queue, enrich existing ones from their own websites, find gaps and duplicates, and keep fa/de/en versions in step with Polylang.
- * Version:           4.2.0
+ * Version:           4.3.0
  * Update URI:        https://github.com/IranDec/ka-listing-bulk-importer/tree/main/ka-listing-bulk-importer
  * Requires at least: 6.0
  * Requires PHP:      7.4
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KA_LBI_VERSION', '4.2.0' );
+define( 'KA_LBI_VERSION', '4.3.0' );
 define( 'KA_LBI_FILE', __FILE__ );
 define( 'KA_LBI_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KA_LBI_URL', plugin_dir_url( __FILE__ ) );
