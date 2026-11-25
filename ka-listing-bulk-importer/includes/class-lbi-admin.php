@@ -41,6 +41,8 @@ class KA_LBI_Admin {
 			'ka_lbi_enrich'          => array( 'KA_LBI_Enrich', 'handle_start' ),
 			'ka_lbi_enrich_one'      => array( 'KA_LBI_Enrich', 'handle_one' ),
 			'ka_lbi_review'          => array( 'KA_LBI_Review', 'handle' ),
+			'ka_lbi_moderate'        => array( 'KA_LBI_Moderation', 'handle' ),
+			'ka_lbi_nolinks'         => array( 'KA_LBI_Moderation', 'handle_toggle' ),
 			'ka_lbi_merge'           => array( 'KA_LBI_Quality', 'handle_merge' ),
 			'ka_lbi_dup_ignore'      => array( 'KA_LBI_Quality', 'handle_ignore' ),
 			'ka_lbi_repair'          => array( __CLASS__, 'handle_repair' ),
@@ -113,6 +115,9 @@ class KA_LBI_Admin {
 				'yes'          => __( 'Yes, continue', 'ka-listing-bulk-importer' ),
 				'cancel'       => __( 'Cancel', 'ka-listing-bulk-importer' ),
 				'selected'     => __( 'selected', 'ka-listing-bulk-importer' ),
+				/* translators: %s: name and e-mail of the submitter */
+				'notify_to'    => __( 'Send the reasons by e-mail to %s', 'ka-listing-bulk-importer' ),
+				'no_mail'      => __( 'No e-mail: this listing was not submitted by a registered user.', 'ka-listing-bulk-importer' ),
 				'all_cats'     => __( 'none selected = all categories', 'ka-listing-bulk-importer' ),
 				'searches'     => __( 'searches', 'ka-listing-bulk-importer' ),
 				'background'   => __( 'runs in the background (more than 24 searches)', 'ka-listing-bulk-importer' ),

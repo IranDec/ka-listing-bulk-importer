@@ -1,0 +1,155 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fa_IR\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "%d times"
+msgstr "%d بار"
+
+msgid "After you save your changes, the listing is checked again."
+msgstr "پس از ذخیره تغییرات، آگهی دوباره بررسی می‌شود."
+
+msgid "Cancel"
+msgstr "انصراف"
+
+msgid "Choose at least one reason or write a note."
+msgstr "دست‌کم یک دلیل انتخاب کنید یا یادداشتی بنویسید."
+
+msgid "Contact details are missing or not correct (phone, address or website)."
+msgstr "اطلاعات تماس ناقص یا نادرست است (تلفن، آدرس یا وب‌سایت)."
+
+msgid "Edit my listing"
+msgstr "ویرایش آگهی من"
+
+msgid "Hamsaye only lists businesses and services in Germany."
+msgstr "همسایه فقط کسب‌وکارها و خدمات داخل آلمان را منتشر می‌کند."
+
+msgid "Hello %s,"
+msgstr "%s عزیز، سلام"
+
+msgid "Kind regards, the %s team"
+msgstr "با احترام، تیم %s"
+
+msgid "Links in descriptions are allowed again."
+msgstr "لینک در توضیحات دوباره مجاز شد."
+
+msgid "Links in descriptions are blocked for submitters."
+msgstr "لینک در توضیحات برای ثبت‌کنندگان مسدود شد."
+
+msgid "No e-mail: this listing was not submitted by a registered user."
+msgstr "بدون ایمیل: این آگهی توسط کاربر ثبت‌نام‌شده ارسال نشده است."
+
+msgid "No links in descriptions"
+msgstr "بدون لینک در توضیحات"
+
+msgid "No photo or logo was added."
+msgstr "هیچ عکس یا لوگویی اضافه نشده است."
+
+msgid "Note to the submitter (optional)"
+msgstr "یادداشت برای ثبت‌کننده (اختیاری)"
+
+msgid "Nothing selected."
+msgstr "چیزی انتخاب نشده است."
+
+msgid "Other reason (see the note below)."
+msgstr "دلیل دیگر (یادداشت زیر را ببینید)."
+
+msgid "Please do not add links or web addresses to the description - enter your website in the \"Website\" field."
+msgstr "لطفاً در توضیحات لینک یا آدرس وب‌سایت ننویسید - وب‌سایت خود را در فیلد «وب‌سایت» وارد کنید."
+
+msgid "Reasons (those found by the automatic check are already ticked)"
+msgstr "دلایل (مواردی که بررسی خودکار پیدا کرده از قبل انتخاب شده‌اند)"
+
+msgid "Reject"
+msgstr "رد کردن"
+
+msgid "Reject completely"
+msgstr "رد کامل"
+
+msgid "Reject listing"
+msgstr "رد آگهی"
+
+msgid "Reject with a reason"
+msgstr "رد با ذکر دلیل"
+
+msgid "Send back for changes"
+msgstr "برگرداندن برای اصلاح"
+
+msgid "Send the reasons by e-mail to %s"
+msgstr "ارسال دلایل با ایمیل به %s"
+
+msgid "Sent back on %1$s: %2$s"
+msgstr "برگردانده شده در %1$s: %2$s"
+
+msgid "Submitters cannot save links or web addresses in the description; their website goes into the Website field."
+msgstr "ثبت‌کنندگان نمی‌توانند در توضیحات لینک یا آدرس وب بنویسند؛ وب‌سایت در فیلد وب‌سایت ثبت می‌شود."
+
+msgid "The category or city does not fit the business."
+msgstr "دسته‌بندی یا شهر با این کسب‌وکار مطابقت ندارد."
+
+msgid "The description contains a link or web address. Please remove it - your website belongs in the \"Website\" field."
+msgstr "توضیحات شامل لینک یا آدرس وب‌سایت است. لطفاً آن را حذف کنید - وب‌سایت شما در فیلد «وب‌سایت» قرار می‌گیرد."
+
+msgid "The description contains links or advertising - please enter your website only in the \"Website\" field."
+msgstr "توضیحات شامل لینک یا تبلیغ است - لطفاً آدرس وب‌سایت را فقط در فیلد «وب‌سایت» وارد کنید."
+
+msgid "The description is too short - please describe your services, experience and what makes you special."
+msgstr "توضیحات خیلی کوتاه است - لطفاً خدمات، سابقه و ویژگی‌های کسب‌وکارتان را شرح دهید."
+
+msgid "The e-mail could not be sent."
+msgstr "ایمیل ارسال نشد."
+
+msgid "The listing could not be moved to the trash."
+msgstr "آگهی به زباله‌دان منتقل نشد."
+
+msgid "The listing was rejected and moved to the trash."
+msgstr "آگهی رد شد و به زباله‌دان منتقل شد."
+
+msgid "The listing was sent back to the submitter for changes (draft)."
+msgstr "آگهی برای اصلاح به ثبت‌کننده برگردانده شد (پیش‌نویس)."
+
+msgid "The submitter was informed by e-mail."
+msgstr "ثبت‌کننده با ایمیل مطلع شد."
+
+msgid "The text is not clear enough (spelling, language or formatting)."
+msgstr "متن به اندازه کافی روشن نیست (املا، زبان یا قالب‌بندی)."
+
+msgid "This business is already listed on Hamsaye."
+msgstr "این کسب‌وکار قبلاً در همسایه ثبت شده است."
+
+msgid "Your listing \"%s\" needs a few changes"
+msgstr "آگهی «%s» شما به چند اصلاح نیاز دارد"
+
+msgid "Your listing \"%s\" was not accepted"
+msgstr "آگهی «%s» شما پذیرفته نشد"
+
+msgid "address outside Germany"
+msgstr "آدرس خارج از آلمان"
+
+msgid "contact details missing"
+msgstr "بدون اطلاعات تماس"
+
+msgid "draft; the e-mail contains a link to edit the listing"
+msgstr "پیش‌نویس؛ ایمیل شامل لینک ویرایش آگهی است"
+
+msgid "links in the description"
+msgstr "لینک در توضیحات"
+
+msgid "moved to the trash"
+msgstr "انتقال به زباله‌دان"
+
+msgid "no photo"
+msgstr "بدون عکس"
+
+msgid "registered %1$s · %2$d listings"
+msgstr "ثبت‌نام %1$s · %2$d آگهی"
+
+msgid "short description"
+msgstr "توضیحات کوتاه"
+
+msgid "thank you for submitting \"%1$s\" to %2$s. Before we can publish it, please change the following:"
+msgstr "از ثبت «%1$s» در %2$s سپاسگزاریم. پیش از انتشار، لطفاً موارد زیر را اصلاح کنید:"
+
+msgid "thank you for submitting \"%1$s\" to %2$s. Unfortunately we cannot publish this listing."
+msgstr "از ثبت «%1$s» در %2$s سپاسگزاریم. متأسفانه امکان انتشار این آگهی وجود ندارد."

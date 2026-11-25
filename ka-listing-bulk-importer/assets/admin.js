@@ -215,6 +215,34 @@
 		sync();
 	});
 
+	/* ------------------------------------------------------------ reject with reasons (review queue) */
+	$$('[data-ka-lbi-reject]').forEach(function (b) {
+		b.addEventListener('click', function () {
+			var tpl = document.getElementById('ka-lbi-reject-tpl');
+			if (!tpl) { return; }
+			var last = document.activeElement;
+			var wrap = tpl.content.firstElementChild.cloneNode(true);
+			var form = $('form', wrap);
+			var issues = (b.getAttribute('data-issues') || '').split(',');
+			var who = b.getAttribute('data-submitter') || '';
+			$('[name="post"]', form).value = b.getAttribute('data-ka-lbi-reject');
+			$('[data-title]', wrap).textContent = b.getAttribute('data-title') || '';
+			$$('[name="reasons[]"]', form).forEach(function (c) { c.checked = issues.indexOf(c.value) !== -1; });
+			var notify = $('[name="notify"]', form);
+			notify.checked = !!who;
+			notify.disabled = !who;
+			$('[data-notify-text]', wrap).textContent = who ? (t.notify_to || '%s').replace('%s', who) : (t.no_mail || '');
+			function close() { wrap.remove(); document.removeEventListener('keydown', key); if (last) { last.focus(); } }
+			function key(e) { if (e.key === 'Escape') { close(); } }
+			$('[data-no]', wrap).addEventListener('click', close);
+			wrap.addEventListener('click', function (e) { if (e.target === wrap) { close(); } });
+			document.addEventListener('keydown', key);
+			document.body.appendChild(wrap);
+			var first = $('[name="reasons[]"]', form);
+			if (first) { first.focus(); }
+		});
+	});
+
 	/* ------------------------------------------------------------ live job cards */
 	$$('[data-ka-lbi-job]').forEach(function (card) {
 		var type = card.getAttribute('data-ka-lbi-job');

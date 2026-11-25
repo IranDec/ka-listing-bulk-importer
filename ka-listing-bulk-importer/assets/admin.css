@@ -312,3 +312,22 @@ a.ka-lbi-kpi:hover { border-color: #93c5fd; transform: translateY(-1px); }
 	.ka-lbi-meter-a { grid-column: 2 / -1; }
 	.ka-lbi-grid { grid-template-columns: 1fr; }
 }
+
+/* review queue: submitter, history, reject dialog */
+.ka-lbi-qsubmitter, .ka-lbi-qhistory { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 6px; font-size: 13px; }
+.ka-lbi-qsubmitter .dashicons, .ka-lbi-qhistory .dashicons { font-size: 16px; width: 16px; height: 16px; color: #64748b; }
+.ka-lbi-qhistory { color: #92400e; }
+.ka-lbi-rule { margin-inline-start: auto; }
+.ka-lbi-rule label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.ka-lbi-modal-box.ka-lbi-reject { max-width: 620px; max-height: calc(100vh - 40px); overflow: auto; }
+.ka-lbi-reject .ka-lbi-muted[data-title] { margin: -4px 0 12px; font-weight: 600; }
+.ka-lbi-reasons { margin: 0 0 12px; padding: 0; border: 0; }
+.ka-lbi-reasons legend { margin-bottom: 6px; font-weight: 600; }
+.ka-lbi-reasons label, .ka-lbi-modes label { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 8px; line-height: 1.5; }
+.ka-lbi-reasons label:hover, .ka-lbi-modes label:hover { background: #f8fafc; }
+.ka-lbi-reasons input, .ka-lbi-modes input { margin-top: 3px; }
+.ka-lbi-reject .ka-lbi-block { display: block; margin: 4px 0 12px; font-weight: 600; }
+.ka-lbi-reject .ka-lbi-block textarea { display: block; width: 100%; margin-top: 6px; font-weight: 400; }
+.ka-lbi-modes { display: grid; gap: 2px; margin: 0 0 10px; padding: 8px; border-radius: 10px; background: #f8fafc; }
+.ka-lbi-modes .ka-lbi-muted { font-size: 12px; }
+.ka-lbi-notify { display: flex; gap: 8px; align-items: center; margin: 0 0 16px; }

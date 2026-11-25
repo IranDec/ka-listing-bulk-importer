@@ -42,6 +42,16 @@ $ka_sources = array(
 				<?php endforeach; ?>
 			</select>
 		</form>
+		<?php if ( current_user_can( KA_LBI_Plugin::SETTINGS_CAP ) ) : ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ka-lbi-inline-form ka-lbi-rule">
+				<?php wp_nonce_field( KA_LBI_Plugin::NONCE ); ?>
+				<input type="hidden" name="action" value="ka_lbi_nolinks">
+				<label title="<?php esc_attr_e( 'Submitters cannot save links or web addresses in the description; their website goes into the Website field.', 'ka-listing-bulk-importer' ); ?>">
+					<input type="checkbox" name="on" value="1" data-ka-lbi-autosubmit <?php checked( KA_LBI_Moderation::links_blocked() ); ?>>
+					<?php esc_html_e( 'No links in descriptions', 'ka-listing-bulk-importer' ); ?>
+				</label>
+			</form>
+		<?php endif; ?>
 	</div>
 
 	<?php if ( ! $ka_q->have_posts() ) : ?>
@@ -77,6 +87,10 @@ $ka_sources = array(
 						'place_id'   => get_post_meta( $ka_id, '_ka_lbi_place_id', true ),
 					), $ka_id );
 					$ka_res  = get_post_meta( $ka_id, KA_LBI_Enrich::META_NOTES, true );
+					$ka_user = KA_LBI_Moderation::submitter( $ka_id );
+					$ka_iss  = KA_LBI_Moderation::issues( $ka_id );
+					$ka_log  = KA_LBI_Moderation::log( $ka_id );
+					$ka_last = $ka_log ? end( $ka_log ) : null;
 					?>
 					<div class="ka-lbi-qrow">
 						<input type="checkbox" name="ids[]" value="<?php echo (int) $ka_id; ?>" aria-label="<?php echo esc_attr( get_the_title() ); ?>">
@@ -94,7 +108,41 @@ $ka_sources = array(
 								<?php if ( $ka_v = get_post_meta( $ka_id, 'phone', true ) ) : ?><span><span class="dashicons dashicons-phone"></span><?php echo esc_html( $ka_v ); ?></span><?php endif; ?>
 								<?php if ( $ka_v = get_post_meta( $ka_id, 'website', true ) ) : ?><span><span class="dashicons dashicons-admin-site-alt3"></span><a href="<?php echo esc_url( $ka_v ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( KA_LBI_Store::host_key( $ka_v ) ? KA_LBI_Store::host_key( $ka_v ) : $ka_v ); ?></a></span><?php endif; ?>
 							</div>
+							<?php if ( $ka_user ) : ?>
+								<div class="ka-lbi-qsubmitter">
+									<span class="dashicons dashicons-admin-users"></span>
+									<a href="<?php echo esc_url( get_edit_user_link( $ka_user->ID ) ); ?>"><strong><?php echo esc_html( $ka_user->display_name ); ?></strong></a>
+									<a href="mailto:<?php echo esc_attr( $ka_user->user_email ); ?>"><?php echo esc_html( $ka_user->user_email ); ?></a>
+									<span class="ka-lbi-muted"><?php
+										/* translators: 1: time since registration, 2: number of listings */
+										echo esc_html( sprintf( __( 'registered %1$s · %2$d listings', 'ka-listing-bulk-importer' ), KA_LBI_Admin::ago( $ka_user->user_registered ), KA_LBI_Moderation::count_listings( $ka_user->ID ) ) );
+									?></span>
+								</div>
+							<?php endif; ?>
+							<?php if ( $ka_last ) : ?>
+								<div class="ka-lbi-qhistory">
+									<span class="dashicons dashicons-backup"></span>
+									<?php
+									$ka_rs = KA_LBI_Moderation::reasons();
+									echo esc_html( sprintf(
+										/* translators: 1: date, 2: reasons */
+										__( 'Sent back on %1$s: %2$s', 'ka-listing-bulk-importer' ),
+										wp_date( get_option( 'date_format' ), $ka_last['time'] ),
+										implode( ' · ', array_map( function ( $r ) use ( $ka_rs ) {
+											return isset( $ka_rs[ $r ] ) ? wp_trim_words( $ka_rs[ $r ], 6, '…' ) : $r;
+										}, $ka_last['reasons'] ) ) . ( '' !== $ka_last['note'] ? ' · "' . wp_trim_words( $ka_last['note'], 10, '…' ) . '"' : '' )
+									) );
+									if ( count( $ka_log ) > 1 ) {
+										/* translators: %d: number of times */
+										echo ' <span class="ka-lbi-muted">(' . esc_html( sprintf( __( '%d times', 'ka-listing-bulk-importer' ), count( $ka_log ) ) ) . ')</span>';
+									}
+									?>
+								</div>
+							<?php endif; ?>
 							<div class="ka-lbi-qflags">
+								<?php $ka_il = KA_LBI_Moderation::issue_labels(); foreach ( $ka_iss as $ka_i ) : ?>
+									<?php echo KA_LBI_Admin::pill( $ka_il[ $ka_i ], 'bad' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+								<?php endforeach; ?>
 								<?php echo KA_LBI_Admin::dots( $ka_id ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 								<?php if ( KA_LBI_Providers::is_ai( (string) get_post_meta( $ka_id, '_ka_lbi_source', true ) ) ) : ?>
 									<?php echo KA_LBI_Admin::pill( __( 'AI suggestion - verify', 'ka-listing-bulk-importer' ), 'warn' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
@@ -116,12 +164,44 @@ $ka_sources = array(
 							<button type="button" class="button button-primary button-small" title="<?php esc_attr_e( 'Publish', 'ka-listing-bulk-importer' ); ?>" data-ka-lbi-one="approve" data-id="<?php echo (int) $ka_id; ?>"><span class="dashicons dashicons-yes"></span></button>
 							<a class="button button-small" href="<?php echo esc_url( KA_LBI_Plugin::action_url( 'ka_lbi_enrich_one', array( 'post' => $ka_id, 'back' => 'ka-lbi-review' ) ) ); ?>" title="<?php esc_attr_e( 'Enrich now', 'ka-listing-bulk-importer' ); ?>"><span class="dashicons dashicons-admin-site-alt3"></span></a>
 							<a class="button button-small" href="<?php echo esc_url( get_edit_post_link( $ka_id, 'raw' ) ); ?>" title="<?php esc_attr_e( 'Edit', 'ka-listing-bulk-importer' ); ?>"><span class="dashicons dashicons-edit"></span></a>
-							<button type="button" class="button button-small ka-lbi-danger" title="<?php esc_attr_e( 'Reject', 'ka-listing-bulk-importer' ); ?>" data-ka-lbi-one="reject" data-id="<?php echo (int) $ka_id; ?>" data-confirm="<?php esc_attr_e( 'Move this listing to the trash?', 'ka-listing-bulk-importer' ); ?>"><span class="dashicons dashicons-trash"></span></button>
+							<button type="button" class="button button-small ka-lbi-danger" title="<?php esc_attr_e( 'Reject with a reason', 'ka-listing-bulk-importer' ); ?>" data-ka-lbi-reject="<?php echo (int) $ka_id; ?>" data-title="<?php echo esc_attr( get_the_title() ); ?>" data-issues="<?php echo esc_attr( implode( ',', $ka_iss ) ); ?>" data-submitter="<?php echo $ka_user ? esc_attr( $ka_user->display_name . ' <' . $ka_user->user_email . '>' ) : ''; ?>"><span class="dashicons dashicons-dismiss"></span></button>
 						</div>
 					</div>
 				<?php endwhile; wp_reset_postdata(); ?>
 			</div>
 		</form>
+		<template id="ka-lbi-reject-tpl">
+			<div class="ka-lbi-modal">
+				<form class="ka-lbi-modal-box ka-lbi-reject" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" role="dialog" aria-modal="true" aria-labelledby="ka-lbi-rt">
+					<?php wp_nonce_field( KA_LBI_Plugin::NONCE ); ?>
+					<input type="hidden" name="action" value="ka_lbi_moderate">
+					<input type="hidden" name="post" value="">
+					<input type="hidden" name="f_source" value="<?php echo esc_attr( $ka_source ); ?>">
+					<input type="hidden" name="f_location" value="<?php echo (int) $ka_location; ?>">
+					<input type="hidden" name="f_paged" value="<?php echo (int) $ka_paged; ?>">
+					<h3 id="ka-lbi-rt"><?php esc_html_e( 'Reject listing', 'ka-listing-bulk-importer' ); ?></h3>
+					<p class="ka-lbi-muted" data-title></p>
+					<fieldset class="ka-lbi-reasons">
+						<legend><?php esc_html_e( 'Reasons (those found by the automatic check are already ticked)', 'ka-listing-bulk-importer' ); ?></legend>
+						<?php foreach ( KA_LBI_Moderation::reasons() as $ka_k => $ka_text ) : ?>
+							<label><input type="checkbox" name="reasons[]" value="<?php echo esc_attr( $ka_k ); ?>"> <?php echo esc_html( $ka_text ); ?></label>
+						<?php endforeach; ?>
+					</fieldset>
+					<label class="ka-lbi-block"><?php esc_html_e( 'Note to the submitter (optional)', 'ka-listing-bulk-importer' ); ?>
+						<textarea name="note" rows="3" dir="auto"></textarea>
+					</label>
+					<div class="ka-lbi-modes">
+						<label><input type="radio" name="mode" value="changes" checked> <strong><?php esc_html_e( 'Send back for changes', 'ka-listing-bulk-importer' ); ?></strong> <span class="ka-lbi-muted"><?php esc_html_e( 'draft; the e-mail contains a link to edit the listing', 'ka-listing-bulk-importer' ); ?></span></label>
+						<label><input type="radio" name="mode" value="final"> <strong><?php esc_html_e( 'Reject completely', 'ka-listing-bulk-importer' ); ?></strong> <span class="ka-lbi-muted"><?php esc_html_e( 'moved to the trash', 'ka-listing-bulk-importer' ); ?></span></label>
+					</div>
+					<label class="ka-lbi-notify"><input type="checkbox" name="notify" value="1" checked> <span data-notify-text></span></label>
+					<div class="ka-lbi-modal-act">
+						<button type="button" class="button" data-no><?php esc_html_e( 'Cancel', 'ka-listing-bulk-importer' ); ?></button>
+						<button type="submit" class="button button-primary"><?php esc_html_e( 'Reject', 'ka-listing-bulk-importer' ); ?></button>
+					</div>
+				</form>
+			</div>
+		</template>
 		<?php
 		$ka_pages = (int) $ka_q->max_num_pages;
 		if ( $ka_pages > 1 ) {

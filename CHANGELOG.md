@@ -4,6 +4,14 @@ All notable changes to this plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 4.1.0 - 2026-11-25
+
+### Added
+- **Moderation of submitted listings** in the review queue: each listing shows who submitted it (name, e-mail, registration, number of listings, link to the user) and automatic checks (no photo, short description, links in the description, no contact details, address outside Germany).
+- **Reject with reasons**: dialog with predefined reasons (checks already ticked) and a note; "send back for changes" (draft, the e-mail links to the ListingPro edit page; saving puts it back into review) or "reject completely" (trash). The submitter gets an e-mail in their language (Persian translation included); every rejection is kept in the listing's history and shown in the queue.
+- **No links in descriptions** (switch in the review queue, on by default): the submit / edit form shows a hint and refuses to submit while the description contains a link or web address; links are also removed when such a form is saved by a non-editor (imports, cron and translations are not affected).
+- Persian translation of the new texts (`languages/ka-listing-bulk-importer-fa_IR.po/.mo`).
+
 ## 4.0.1 - 2026-11-25
 
 - Header `Update URI` points to GitHub: updates come from the repository through KA Hub (menu "KA Modules"), and WordPress never offers an unrelated plugin of the same name from wordpress.org.
