@@ -4,6 +4,10 @@ All notable changes to this plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 4.0.1 - 2026-11-25
+
+- Header `Update URI` points to GitHub: updates come from the repository through KA Hub (menu "KA Modules"), and WordPress never offers an unrelated plugin of the same name from wordpress.org.
+
 ## [4.0.0] - 2026-11-17
 
 Complete rebuild. All settings, keys, schedules, logs and the undo history are kept.
