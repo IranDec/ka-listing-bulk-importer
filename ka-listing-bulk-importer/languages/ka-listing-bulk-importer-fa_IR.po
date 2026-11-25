@@ -28,8 +28,17 @@ msgstr "تصویر پیش‌فرض"
 msgid "Default image of the category"
 msgstr "تصویر پیش‌فرض دسته"
 
+msgid "Edit"
+msgstr "ویرایش"
+
 msgid "Edit my listing"
 msgstr "ویرایش آگهی من"
+
+msgid "Enrich"
+msgstr "تکمیل"
+
+msgid "Fill in missing data from Google / AI"
+msgstr "تکمیل اطلاعات ناقص از گوگل / هوش مصنوعی"
 
 msgid "Hamsaye only lists businesses and services in Germany."
 msgstr "همسایه فقط کسب‌وکارها و خدمات داخل آلمان را منتشر می‌کند."
@@ -48,6 +57,12 @@ msgstr "لینک در توضیحات دوباره مجاز شد."
 
 msgid "Links in descriptions are blocked for submitters."
 msgstr "لینک در توضیحات برای ثبت‌کنندگان مسدود شد."
+
+msgid "Move selected to the trash"
+msgstr "انتقال انتخاب‌شده‌ها به زباله‌دان"
+
+msgid "No description."
+msgstr "بدون توضیحات."
 
 msgid "No e-mail: this listing was not submitted by a registered user."
 msgstr "بدون ایمیل: این آگهی توسط کاربر ثبت‌نام‌شده ارسال نشده است."
@@ -73,6 +88,9 @@ msgstr "دلیل دیگر (یادداشت زیر را ببینید)."
 msgid "Please do not add links or web addresses to the description - enter your website in the \"Website\" field."
 msgstr "لطفاً در توضیحات لینک یا آدرس وب‌سایت ننویسید - وب‌سایت خود را در فیلد «وب‌سایت» وارد کنید."
 
+msgid "Preview"
+msgstr "پیش‌نمایش"
+
 msgid "Publish"
 msgstr "انتشار"
 
@@ -93,6 +111,9 @@ msgstr "رد با ذکر دلیل"
 
 msgid "Reject with a reason…"
 msgstr "رد با ذکر دلیل…"
+
+msgid "Reject…"
+msgstr "رد…"
 
 msgid "Remove"
 msgstr "حذف"
@@ -163,6 +184,9 @@ msgstr "آگهی «%s» شما پذیرفته نشد"
 msgid "address outside Germany"
 msgstr "آدرس خارج از آلمان"
 
+msgid "category image"
+msgstr "تصویر دسته"
+
 msgid "contact details missing"
 msgstr "بدون اطلاعات تماس"
 
@@ -207,3 +231,6 @@ msgstr "از ثبت «%1$s» در %2$s سپاسگزاریم. پیش از انت�
 
 msgid "thank you for submitting \"%1$s\" to %2$s. Unfortunately we cannot publish this listing."
 msgstr "از ثبت «%1$s» در %2$s سپاسگزاریم. متأسفانه امکان انتشار این آگهی وجود ندارد."
+
+msgid "without e-mail - to tell a submitter why, use \"Reject…\" on the listing"
+msgstr "بدون ایمیل - برای اطلاع دادن دلیل به ثبت‌کننده، از «رد…» روی همان آگهی استفاده کنید"

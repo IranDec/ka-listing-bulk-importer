@@ -4,6 +4,12 @@ All notable changes to this plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 4.4.0 - 2026-11-25
+
+### Changed
+- **Review queue redesigned**: one card per listing with a larger image (or the category image the listing will get, marked as such, or "no photo"), contact data read from ListingPro's options as well (address, phone, e-mail, website - user submissions keep them there), an excerpt of the description with links marked in red, titles in their own reading direction, and labelled buttons **Publish** / **Reject…** with Preview · Edit · Enrich below.
+- Bulk bar: "Reject selected" is now "Move selected to the trash" with the note that no e-mail is sent.
+
 ## 4.3.0 - 2026-11-25
 
 ### Added
